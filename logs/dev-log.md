@@ -70,3 +70,18 @@ renderer + its built-in FSR1 on the Mali-G57.
   explains amd64 vs arm64: the itch download ships PC binaries (Win x86/x64,
   Linux amd64); the phone is ARM — binaries are recompiled from the GPL source,
   only arch-independent content carries over.
+
+## 2026-11-20 (later) — v0.1.0 device test failed: lib naming; fix in v0.1.1
+
+- User ran v0.1.0 on the Hot 50 4G (log in logs/device-tests/): engine booted,
+  found the game folder, init'd video (Mali-G57, GLES1 renderer) — then
+  dlopen failures for server/client/menu: our zip shipped
+  `client_android_arm64.so` but the engine requests `libclient_android_arm64.so`
+  (library_suffix adds the `lib` prefix on Android; FS lookup missed → bare-name
+  fallback searched the APK → nothing there either).
+- Root-caused in engine source (lib_android.c ANDROID_LoadLibrary chain,
+  lib_common.c, library_suffix.c); wrote up in PORTING_NOTES.md §7.
+- Fix: game-libs job renames outputs to lib-prefixed names; engine-apk job now
+  `needs: game-libs` and bakes the three libs into jniLibs/arm64-v8a (menu as
+  libmenu.so = the engine's bare fallback name). APK self-contained now.
+- Docs updated (WHAT_TO_DOWNLOAD.md: v0.1.1 flow, lib names; PORTING_NOTES §7).

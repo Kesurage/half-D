@@ -78,3 +78,37 @@ gl4es is the safety net (it translates desktop GL 2.x → GLES 2.0). Test matrix
 - Phase 4 becomes: R1 shader conversion → FSR/SSAO on GLES; BCn transcode still
   applies only if textures ship DXT (check WADs when content is downloaded).
 - New Phase R2: PhysX aarch64 build verification (started in CI now).
+
+## 7. Android library loading — ground truth from the v0.1.0 device test
+
+v0.1.0 failed on device with `dlopen failed: library "libclient_android_arm64.so"
+not found`. Source-verified cause and fix (engine `engine/platform/android/lib_android.c`,
+`engine/common/lib_common.c`, `3rdparty/library_suffix`):
+
+1. **Naming**: `COM_GenerateCommonLibraryName` on Android produces
+   `lib<name>_android_arm64.so` (mandatory `lib` prefix). The engine requests
+   `bin/libserver_android_arm64.so`, `bin/libclient_android_arm64.so` (paths
+   from gameinfo `dll_path`/`gamedll_linux`), and for the menu first
+   `bin/libmenu_android_arm64.so` then bare `libmenu.so`. Our v0.1.0 zip shipped
+   `client_android_arm64.so` etc. — no `lib` prefix, so every lookup missed.
+2. **Load chain** (`ANDROID_LoadLibrary`, in order): `XASH3D_GAMELIBDIR/<name>`
+   env → VFS (game folder on /storage, full-path dlopen) → **bare-name dlopen =
+   the APK's own `lib/<abi>/`**. The last step is the reliable one on modern
+   Android (scoped storage makes /storage dlopen device-dependent; the APK
+   nativeLibraryDir always works, and a VFS failure falls through to it).
+3. **Fix (v0.1.1)**: CI bakes the three game libs into the APK
+   (`jniLibs/arm64-v8a/`: `libserver_android_arm64.so`,
+   `libclient_android_arm64.so`, `libmenu.so` — the bare fallback name for the
+   menu), and the libs zip now carries correctly-named files for the
+   game-folder route. Both routes fail soft: whichever is loadable wins.
+4. **Not a bug**: package `su.xash.engine.test` — the `continuous` buildType is
+   `initWith(release)` + committed debug keystore + `.test` suffix by design
+   (upstream FWGS CI convention; `assembleRelease` is unsigned → uninstallable).
+   The `bfd42b7` in the log's version string is the throwaway hash of CI's
+   in-workspace `git init` of the vendored engine (needed because gradle reads
+   `git rev-parse HEAD`), not our upstream pin (11ed246c — see engine/UPSTREAM.md).
+5. **Related mechanism, unused by us**: `rodir` = `<app files>/gamelibs` is
+   populated by the launcher's `GameLibDownloader` (FWGS serves per-game
+   Android libs for known games; nothing for Diffusion). `armeabi-v7a` game
+   libs are not built — v7a phones get the engine but no game code (device is
+   arm64; documented, not a goal for M1).
