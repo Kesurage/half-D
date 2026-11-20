@@ -35,6 +35,11 @@ def build(bld):
 	manifest = json.load(open(bld.path.parent.find_node('scripts/physx_manifest.json').abspath()))
 
 	physx_platform_sources = manifest['sources_windows'] if bld.env.DEST_OS == 'win32' else manifest['sources_unix']
+	# half-D android: enable PhysX's android codepaths (bionic has no bits/local_lim.h
+	# and PsUnix* files guard on PX_ANDROID / ANDROID)
+	physx_defines = list(manifest['defines'])
+	if bld.env.DEST_OS == 'android':
+		physx_defines += ['PX_ANDROID=1', 'ANDROID=1']
 	physx_sources = []
 	missing = []
 	for src in manifest['sources'] + physx_platform_sources:
@@ -55,7 +60,7 @@ def build(bld):
 		name     = 'physx',
 		features = 'cxx',
 		includes = physx_include_paths,
-		defines  = manifest['defines'],
+		defines  = physx_defines,
 		cxxflags = ['-std=c++14', '-w', '-fno-strict-aliasing', '-fexceptions'],
 		idx = bld.get_taskgen_count()
 	)
@@ -68,7 +73,7 @@ def build(bld):
 		includes = '. ../common ../engine ../game_shared monsters physics physics/physx ' +
 			os.path.join(bld.env.PHYSX_SDK, 'physx', 'include') + ' ' +
 			os.path.join(bld.env.PHYSX_SDK, 'pxshared', 'include'),
-		defines  = ['PX_PHYSX_STATIC_LIB'],
+		defines  = ['PX_PHYSX_STATIC_LIB', 'PX_ANDROID=1', 'ANDROID=1'] if bld.env.DEST_OS == 'android' else ['PX_PHYSX_STATIC_LIB'],
 		use      = 'physx',
 		lib      = ['pthread', 'dl'] if bld.env.DEST_OS != 'win32' else [],
 		install_path = os.path.join(bld.env.GAMEDIR, bld.env.SERVER_INSTALL_DIR),

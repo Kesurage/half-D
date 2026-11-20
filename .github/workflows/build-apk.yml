@@ -40,7 +40,7 @@ jobs:
         wget -q "https://github.com/libsdl-org/SDL/releases/download/release-${SDL_VERSION}/SDL2-${SDL_VERSION}.tar.gz" -O- | tar -xz -C 3rdparty/SDL --strip-components=1
         . scripts/lib.sh
         for ABI in armeabi-v7a:arm32 arm64-v8a:arm64; do
-          archive=$(GH_CPU_OS=linux GH_CPU_ARCH="${ABI#*:}" FFMPEG_VERSION="${FFMPEG_VERSION}" get_ffmpeg_archive)
+          archive=$(GH_CPU_OS=android GH_CPU_ARCH="${ABI#*:}" FFMPEG_VERSION="${FFMPEG_VERSION}" get_ffmpeg_archive)
           echo "ffmpeg archive: $archive"
           wget -q "https://github.com/FWGS/FFmpeg-Builds/releases/download/latest/${archive}.tar.xz" -O- | tar -xJf - -C 3rdparty/ffmpeg
           mv "3rdparty/ffmpeg/${archive}" "3rdparty/ffmpeg/${ABI%%:*}"
