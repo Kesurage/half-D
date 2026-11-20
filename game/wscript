@@ -50,6 +50,10 @@ def configure(conf):
 	# Load compilers early
 	conf.load('xshlib xcompile compiler_c compiler_cxx')
 
+	# half-D: the game sources predate C++17 ('register' storage in stringlib.cpp);
+	# NDK clang defaults to C++17, so pin GNU++14 project-wide
+	conf.env.append_unique('CXXFLAGS', ['-std=gnu++14'])
+
 	# HACKHACK: override msvc DEST_CPU value by something that we understand
 	if conf.env.DEST_CPU == 'amd64':
 		conf.env.DEST_CPU = 'x86_64'

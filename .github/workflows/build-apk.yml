@@ -52,8 +52,14 @@ jobs:
         cd engine && git init -q .
         git add -A && git -c user.name=ci -c user.email=ci@half-d.local commit -qm "vendored xash3d-fwgs"
 
+    - name: Ensure cmake and ninja available
+      run: |
+        cmake --version || { sudo apt-get update && sudo apt-get install -y cmake; }
+        ninja --version || sudo apt-get install -y ninja-build || true
+
     - name: Build APK
       run: |
+        export PATH="/usr/local/lib/android/sdk/cmake/3.22.1/bin:$PATH"
         cd engine/android
         ANDROID_HOME="/usr/local/lib/android/sdk" ANDROID_SDK_ROOT="/usr/local/lib/android/sdk" ./gradlew assembleContinuous --no-daemon
 

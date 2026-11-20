@@ -23,7 +23,7 @@ import io
 def check_repo(name, branch, url, path):
 	if not os.path.exists(path):
 		print("{} not found. Cloning...".format(name))
-		git_exec = ["git", "clone", "--branch", branch, url, path]
+		git_exec = ["git", "clone", "--depth", "1", "--branch", branch, url, path]
 		git_process = subprocess.Popen(git_exec)
 		git_process.communicate()
 
@@ -42,7 +42,8 @@ def run_cmake(root, out, toolchain, abi, build_type, ndk_root, min_sdk, *args):
 
 	cmake_exec.extend(args)
 	cmake_process = subprocess.Popen(cmake_exec)
-	cmake_process.communicate()
+	if cmake_process.wait() != 0:
+		sys.exit("configure-ninja: cmake configure failed for {}".format(root))
 
 
 def main():
@@ -112,7 +113,8 @@ def main():
 	waf_exec += ["ninja"]
 
 	process = subprocess.Popen(waf_exec, env=env)
-	process.communicate()
+	if process.wait() != 0:
+		sys.exit("configure-ninja: waf configure failed for xash3d-fwgs, see log above")
 
 	with io.open(os.path.join(args.configuration_dir, "build.ninja.txt"), "w", encoding="utf-8") as f:
 		f.write(os.path.join(out_path, "build.ninja"))
