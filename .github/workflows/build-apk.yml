@@ -107,7 +107,7 @@ jobs:
     - name: Build
       run: |
         cd game
-        python3 waf build install
+        python3 waf build install --destdir=out 2>&1 | tee build.log || { tail -80 build.log; exit 1; }
 
     - name: Package diffusion android libs
       run: |

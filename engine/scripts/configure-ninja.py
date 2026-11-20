@@ -109,6 +109,16 @@ def main():
 
 	process = subprocess.Popen(waf_exec, env=env)
 	if process.wait() != 0:
+		# dump waf config.log tail for diagnosis
+		try:
+			log_path = os.path.join(out_path, "config.log")
+			with io.open(log_path, "r", encoding="utf-8", errors="replace") as f:
+				lines = f.readlines()
+			print("===== waf config.log tail ({}) =====".format(log_path))
+			sys.stdout.write("".join(lines[-120:]))
+			print("===== end config.log =====")
+		except Exception as e:
+			print("could not read config.log: {}".format(e))
 		sys.exit("configure-ninja: waf configure failed for xash3d-fwgs, see log above")
 
 	with io.open(os.path.join(args.configuration_dir, "build.ninja.txt"), "w", encoding="utf-8") as f:
