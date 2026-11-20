@@ -2,7 +2,7 @@
 
 **Diffusion (by Aynekko) — native Android port. A fork of [Xash3D-FWGS](https://github.com/FWGS/xash3d-fwgs) delivering a standalone, playable APK with a built-in launcher, custom touch controls, FSR1 upscaling and Mali/panvk-friendly graphics settings.**
 
-> Status: **M0.5 green — Release v0.1.0 is out.** CI builds the engine APK and
+> Status: **M1 device-test round 1 — Release v0.1.1 is out** (v0.1.0 boot failed on device: wrong lib names; fixed and libs now bundled in the APK — see `docs/PORTING_NOTES.md` §7). CI builds the engine APK and
 > the Diffusion Android libraries (client/server/PhysX/MainUI, arm64-v8a) on
 > every push; grab them from [Releases](https://github.com/Kesurage/half-D/releases).
 > Note: the itch.io/ModDB download ships PC binaries only (Windows x86/x64,
