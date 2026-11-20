@@ -16,8 +16,23 @@
    `valve/` folder from an owned Half-Life copy onto the device. We will verify
    exactly what's needed once the APK boots (will be recorded in
    `logs/device-tests/`).
-4. **The APK** comes from our GitHub Actions (artifact `half-D-engine-apk`), and
-   the game libraries from artifact `diffusion-android-libs`. Nothing else.
+4. **The APK and the Android game libraries** come from the
+   [Releases page](https://github.com/Kesurage/half-D/releases) — start with
+   Release v0.1.0 (`half-D-engine-apk` + `diffusion-android-aarch64-libs`).
+   CI artifacts on the Actions tab need a GitHub login and expire; Releases
+   don't. Nothing else to download.
+
+## amd64 vs arm64 — why the download alone can't run on the phone
+
+The Diffusion download ships **PC binaries**: Windows x86/x64 DLLs and a Linux
+**amd64** build. Your phone (Helio G100) is **ARM: arm64-v8a** — those binaries
+cannot run on it, which is exactly why this fork exists: the game's *source*
+(vendored in `game/`, GPL-3.0) is recompiled for arm64 by CI. What carries over
+from the itch.io download untouched is the arch-independent content: maps,
+models, sounds, voice, sprites — and the `glsl/` shader folder (must match the
+game version). Our `diffusion-android-aarch64-libs` zip replaces only the
+binaries: `diffusion/bin/client_android_arm64.so`, `server_android_arm64.so`
+(PhysX inside), `menu_android_arm64.so`.
 
 ## Where files go on the phone (Phase 2 will automate this)
 

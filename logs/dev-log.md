@@ -57,3 +57,16 @@ Result: run 44765503520 all-green. Artifacts:
 Next: device install test (stock content paths), then Phase R1 shader
 conversion (desktop GLSL 1.20 → GLSL ES 3.00) to light up Diffusion's custom
 renderer + its built-in FSR1 on the Mali-G57.
+
+## 2026-11-20 — v0.1.0 released; arch clarification; local wipe note
+
+- Sandbox recycled and wiped the local half-d tree mid-turn; everything was
+  safe on GitHub — re-cloned (remote is the source of truth, as designed).
+- Published GitHub Release v0.1.0 (prerelease): half-D-v0.1.0.apk (engine,
+  arm64-v8a + armeabi-v7a) + diffusion-android-aarch64-libs.zip (client 20 MB,
+  server 73 MB w/ PhysX, menu 5.5 MB + glsl/).
+- Fixed stale docs: README status line, engine/UPSTREAM.md bzip2 note (vendored
+  from libarchive mirror), WHAT_TO_DOWNLOAD.md now points to Releases and
+  explains amd64 vs arm64: the itch download ships PC binaries (Win x86/x64,
+  Linux amd64); the phone is ARM — binaries are recompiled from the GPL source,
+  only arch-independent content carries over.

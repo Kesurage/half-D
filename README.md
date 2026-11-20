@@ -2,9 +2,12 @@
 
 **Diffusion (by Aynekko) — native Android port. A fork of [Xash3D-FWGS](https://github.com/FWGS/xash3d-fwgs) delivering a standalone, playable APK with a built-in launcher, custom touch controls, FSR1 upscaling and Mali/panvk-friendly graphics settings.**
 
-> Status: **Phase R — port engineering.** Engine fork, Diffusion source, MainUI
-> and build tooling are vendored; CI builds the engine APK and Android game
-> libraries on every push (see Actions). Phase 0 research lives in `docs/`.
+> Status: **M0.5 green — Release v0.1.0 is out.** CI builds the engine APK and
+> the Diffusion Android libraries (client/server/PhysX/MainUI, arm64-v8a) on
+> every push; grab them from [Releases](https://github.com/Kesurage/half-D/releases).
+> Note: the itch.io/ModDB download ships PC binaries only (Windows x86/x64,
+> Linux amd64) — a phone is ARM, so all game code is recompiled from the source
+> vendored here (see `docs/WHAT_TO_DOWNLOAD.md` § "amd64 vs arm64").
 
 - Target device: **Infinix Hot 50 4G** (MediaTek Helio G100, ARM Mali-G57 MC2, Android 14)
 - Source game: **Diffusion** — a total-conversion Half-Life mod running on Xash3D-FWGS (https://aynekko.itch.io/diffusion, https://www.moddb.com/mods/diffusion)
