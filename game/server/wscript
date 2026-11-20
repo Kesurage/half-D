@@ -66,7 +66,7 @@ def build(bld):
 	)
 
 	bld.shlib(
-		source   = sources + ([node.abspath() for node in bld.path.ant_glob('physics/physx/cpu-features.c')] if bld.env.DEST_OS == 'android' else []),
+		source   = sources + (['physics/physx/cpu-features.c'] if bld.env.DEST_OS == 'android' else []),
 		target   = bld.env.SERVER_LIBRARY_NAME + bld.env.POSTFIX,
 		name     = 'server',
 		features = 'c cxx',
