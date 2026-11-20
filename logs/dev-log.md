@@ -27,3 +27,33 @@
 - Added scripts/fetch_physx.sh + .github/workflows/build-apk.yml (engine APK +
   game-libs jobs). Dispatched first CI run — expect iteration.
 - Docs: PORTING_NOTES.md (the "different components" answer), WHAT_TO_DOWNLOAD.md.
+
+## 2026-11-20 — Phase R milestone: first green build (M0.5 "CI produces APK + libs")
+
+CI iteration trail (10 runs, every fix a real Android-porting lesson):
+1. ffmpeg prebuilt naming: get_ffmpeg_archive() needs GH_CPU_OS=android (assets are
+   androidarm32/androidarm64).
+2. Diffusion waf lacked android cross-compile → vendored engine xcompile +
+   host_tool_compiler into game/scripts/waifulib; subprojects conditional.
+3. PhysX on android: unix sources are PX_ANDROID-guarded but nothing defined it →
+   server/wscript now adds PX_ANDROID=1 ANDROID=1 on android.
+4. game_shared stringlib.cpp uses 'register' → project gnu++14.
+5. NDK libstdc++ alias doesn't define __libcpp_verbose_abort → xcompile android
+   now links -static-libstdc++ (NDK-recommended, .so self-contained).
+6. bionic has no libpthread → dropped -lpthread on android; added -llog +
+   vendored NDK cpufeatures (cpu-features.c) for PhysX's android_getCpuCount.
+7. engine/.gitignore swallowed 3rdparty/mainui/CMakeLists.txt → force-added.
+8. configure-ninja.py: skipped hlsdk-portable (not needed for Diffusion), fail
+   loudly with full waf output; engine mainui submodule vendored (8981066);
+   bundled bzip2 vendored from libarchive mirror (gitlab unreachable).
+9. APK ABIs restricted to arm64-v8a + armeabi-v7a (x86 had no FFmpeg prebuilt and
+   no target device).
+
+Result: run 44765503520 all-green. Artifacts:
+- half-D-engine-apk (23.5 MB) — forked engine APK (GLES backends: ref_gles1/ref_gl4es)
+- diffusion-android-libs (22.4 MB) — client.so/server.so (PhysX)/menu.so + glsl/
+  for arm64-v8a
+
+Next: device install test (stock content paths), then Phase R1 shader
+conversion (desktop GLSL 1.20 → GLSL ES 3.00) to light up Diffusion's custom
+renderer + its built-in FSR1 on the Mali-G57.
