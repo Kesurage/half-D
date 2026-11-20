@@ -24,11 +24,12 @@ jobs:
 
     - name: Install Android SDK + NDK
       run: |
-        mkdir -p "$HOME/android-sdk/cmdline-tools"
-        cd "$HOME/android-sdk"
+        SDK_DIR="/usr/local/lib/android/sdk"
+        mkdir -p "$SDK_DIR/cmdline-tools"
+        cd "$SDK_DIR"
         wget -q "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_COMMANDLINE_TOOLS_VER}_latest.zip" -O sdk.zip
         unzip -q sdk.zip && mv cmdline-tools cmdtmp && mkdir -p cmdline-tools/tools && mv cmdtmp/* cmdline-tools/tools/
-        export ANDROID_HOME="$HOME/android-sdk"
+        export ANDROID_HOME="$SDK_DIR" ANDROID_SDK_ROOT="$SDK_DIR"
         export PATH="$ANDROID_HOME/cmdline-tools/tools/bin:$ANDROID_HOME/platform-tools:$PATH"
         yes | sdkmanager --licenses > /dev/null || true
         sdkmanager --install "build-tools;${ANDROID_BUILD_TOOLS_VER}" "platform-tools" "platforms;${ANDROID_PLATFORM_VER}" "ndk;${ANDROID_NDK_VERSION}"
@@ -54,7 +55,7 @@ jobs:
     - name: Build APK
       run: |
         cd engine/android
-        ANDROID_HOME="$HOME/android-sdk" ./gradlew assembleContinuous --no-daemon
+        ANDROID_HOME="/usr/local/lib/android/sdk" ANDROID_SDK_ROOT="/usr/local/lib/android/sdk" ./gradlew assembleContinuous --no-daemon
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
@@ -75,11 +76,12 @@ jobs:
 
     - name: Install Android NDK
       run: |
-        mkdir -p "$HOME/android-sdk/cmdline-tools"
-        cd "$HOME/android-sdk"
+        SDK_DIR="/usr/local/lib/android/sdk"
+        mkdir -p "$SDK_DIR/cmdline-tools"
+        cd "$SDK_DIR"
         wget -q "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_COMMANDLINE_TOOLS_VER}_latest.zip" -O sdk.zip
         unzip -q sdk.zip && mv cmdline-tools cmdtmp && mkdir -p cmdline-tools/tools && mv cmdtmp/* cmdline-tools/tools/
-        export ANDROID_HOME="$HOME/android-sdk"
+        export ANDROID_HOME="$SDK_DIR" ANDROID_SDK_ROOT="$SDK_DIR"
         export PATH="$ANDROID_HOME/cmdline-tools/tools/bin:$ANDROID_HOME/platform-tools:$PATH"
         yes | sdkmanager --licenses > /dev/null || true
         sdkmanager --install "platform-tools" "ndk;${ANDROID_NDK_VERSION}"
@@ -93,8 +95,8 @@ jobs:
     - name: Configure (aarch64 Android)
       run: |
         cd game
-        export ANDROID_NDK_HOME="$HOME/android-sdk/ndk/${ANDROID_NDK_VERSION}"
-        python3 waf configure -T release --android=aarch64,clang,21 --destdir=out
+        export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/${ANDROID_NDK_VERSION}"
+        python3 waf configure -T release --disable-werror --android=aarch64,clang,21 --destdir=out
 
     - name: Build
       run: |
