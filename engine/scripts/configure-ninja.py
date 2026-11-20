@@ -74,14 +74,9 @@ def main():
 			  "-DSDL_DUMMYAUDIO=OFF", "-DSDL_DUMMYVIDEO=OFF",
 			  "-DSDL_VULKAN=OFF", "-DSDL_OFFSCREEN=OFF", "-DSDL_STATIC=OFF")
 
-	# configure hlsdk-portable
-	hlsdk_path = os.path.join(args.wscript_path, "3rdparty", "hlsdk-portable")
-	check_repo("hlsdk-portable", "mobile_hacks", "https://github.com/FWGS/hlsdk-portable", hlsdk_path)
-
-	hlsdk_out_path = os.path.join(args.configuration_dir, "hlsdk-portable")
-
-	run_cmake(hlsdk_path, hlsdk_out_path, cmake_toolchain_path, abi, cmake_build_type, args.ndk_root,
-			  args.min_sdk_version, "-DANDROID_APK=ON")
+	# half-D: skip hlsdk-portable entirely — we ship Diffusion's own client/server,
+	# the bundled HL SDK is not part of our APK (its cmake configure also fails on
+	# current NDKs; only kept upstream for the stock HL APK).
 
 	# configure mainui_cpp
 	mainui_path = os.path.join(args.wscript_path, "3rdparty", "mainui")

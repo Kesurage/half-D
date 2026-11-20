@@ -409,7 +409,9 @@ class Android:
 			ldflags += ['-lgcc']
 
 		if self.is_clang() or self.is_host():
-			ldflags += ['-stdlib=libstdc++', '-lc++abi']
+			# half-D: NDK-recommended static libc++ (defines __libcpp_verbose_abort,
+			# keeps each .so self-contained instead of the legacy libstdc++ alias)
+			ldflags += ['-static-libstdc++']
 		else: ldflags += ['-no-canonical-prefixes']
 
 		if self.is_arm():
