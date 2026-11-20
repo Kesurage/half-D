@@ -1,0 +1,432 @@
+/*
+BmodelSolid_fp.glsl - fragment uber shader for all solid bmodel surfaces
+Copyright (C) 2015 Uncle Mike
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+*/
+
+#include "const.h"
+#include "mathlib.h"
+#include "texfetch.h"
+#include "terrain.h"
+#if defined( BMODEL_EMBOSS )
+#include "emboss.h"
+#endif
+#include "specular.h"
+#include "deluxemap.h"
+#if defined( BMODEL_SUN_SHADOW )
+#include "sun_shadow.h"
+#endif
+#if defined( REFLECTION_CUBEMAP )
+#include "cubemap.h"
+#endif
+#if defined( BMODEL_INTERIOR )
+#include "interior.h"
+#endif
+#include "alpha2coverage.h"
+#if defined( BMODEL_WATER ) && defined( BMODEL_WATER_REFRACTION )
+#include "screen.h"
+#endif
+
+#if defined( BMODEL_MULTI_LAYERS )
+uniform sampler2DArray	u_ColorMap;
+uniform sampler2DArray	u_NormalMap;
+#if defined( BMODEL_SPECULAR )
+uniform float		u_GlossSmoothness[TERRAIN_NUM_LAYERS];
+uniform float		u_GlossScale[TERRAIN_NUM_LAYERS];
+#endif
+#if defined( BMODEL_EMBOSS )
+uniform float		u_EmbossScale[TERRAIN_NUM_LAYERS];
+#endif
+#else
+uniform sampler2D	u_ColorMap;
+uniform sampler2D	u_NormalMap;
+#if defined( BMODEL_SPECULAR )
+uniform float		u_GlossSmoothness;
+uniform float		u_GlossScale;
+#endif
+#if defined( BMODEL_EMBOSS )
+uniform float		u_EmbossScale;
+#endif
+uniform vec2		u_ReflectScale;
+#endif
+
+#if defined( BMODEL_REFLECTION_PLANAR ) || defined( BMODEL_WATER_PLANAR )
+	#if defined( BMODEL_WATER_PLANAR )
+	uniform sampler2D	u_WaterTex;     // water diffuse texture to mix with reflection
+	#endif
+uniform float		u_PlanarReflectScale;
+#endif
+
+#if defined( BMODEL_WATER ) && defined( BMODEL_WATER_REFRACTION )
+uniform sampler2D	u_DepthMap;
+#endif
+
+uniform vec4		u_RenderColor;
+uniform vec4		u_BrushParams[3];
+#define u_FogParams	u_BrushParams[0]
+#define u_ViewOrigin	u_BrushParams[1].xyz
+#define u_UnderWater	u_BrushParams[2].x
+
+#if defined( BMODEL_WATER ) && defined( BMODEL_WATER_REFRACTION )
+//uniform float u_zFar;
+#endif
+
+uniform float           u_Fresnel;
+
+// shared variables
+varying vec2		var_TexDiffuse;
+varying vec2		var_TexGlobal;
+varying vec3		var_TexLight0;
+varying vec3		var_TexLight1;
+varying vec3		var_TexLight2;
+varying vec3		var_TexLight3;
+varying vec3		var_ViewVec; 
+varying vec3		var_Normal;
+varying mat3		var_MatrixTBN;
+
+#if defined( BMODEL_REFLECTION_PLANAR ) || defined( BMODEL_WATER_PLANAR ) || defined( BMODEL_PORTAL )
+varying vec4		var_TexMirror;	// mirror coords
+#endif
+
+#if defined( REFLECTION_CUBEMAP ) || defined( BMODEL_INTERIOR )
+varying vec3		var_Position;
+varying vec3		var_WorldNormal;
+#endif
+
+#if defined( BMODEL_SUN_SHADOW )
+varying vec4		var_SunCoord;
+#endif
+
+void main( void )
+{
+	vec4 diffuse = vec4( 0.0 );
+	vec3 glossmap = vec3( 0.0 );
+	vec3 emboss = vec3( 1.0 );
+	vec3 N = normalize( var_Normal );
+
+	vec4 planar_reflection = vec4( 0.0 );
+	vec3 cubemap_reflection = vec3( 0.0 );
+	vec3 screenmap;
+
+	// get diffuse and read alpha
+#if defined( BMODEL_REFLECTION_PLANAR ) || defined( BMODEL_WATER_PLANAR ) || defined( BMODEL_PORTAL )
+	#if defined( BMODEL_WATER_PLANAR )
+		diffuse = texture2D( u_WaterTex, var_TexDiffuse * 0.25 );
+		#if defined( BMODEL_SPECULAR )
+			glossmap = diffuse.rgb;
+		#endif
+	#elif defined( BMODEL_PORTAL )
+		diffuse = texture2DProj( u_ColorMap, var_TexMirror );
+	#else
+		planar_reflection = reflectmap2D( u_ColorMap, var_TexMirror, N, gl_FragCoord.xyz, 0.15 ) * u_PlanarReflectScale;
+		diffuse = planar_reflection;
+	#endif
+#elif defined( BMODEL_MULTI_LAYERS )
+	// compute the masks for terrain
+	vec4 mask0, mask1, mask2, mask3;
+	TerrainReadMask( var_TexGlobal, mask0, mask1, mask2, mask3 );
+	diffuse = TerrainApplyDiffuse( u_ColorMap, var_TexDiffuse, mask0, mask1, mask2, mask3 );
+#else
+	#if defined( BMODEL_WATER )
+		diffuse = texture2D( u_ColorMap, var_TexDiffuse * 0.25 );
+	#else
+		diffuse = texture2D( u_ColorMap, var_TexDiffuse );
+	#endif
+	#if defined( BMODEL_SPECULAR )
+		glossmap = diffuse.rgb;
+	#endif
+#endif
+
+#if defined( ALPHA_RESCALING )
+	diffuse.a = AlphaRescaling( u_ColorMap, var_TexDiffuse, diffuse.a );
+#endif
+
+#if !defined( BMODEL_INTERIOR )
+	if( diffuse.a == 0.0 ) discard;
+	#if !defined( BMODEL_DEFAULTALPHATEST )
+		if( diffuse.a < 0.5 ) discard;
+	#endif
+#endif
+
+	float alpha = u_RenderColor.a;
+	float fogFactor = 0.0;
+	float fresnel = 0.0;
+
+	vec3 V = normalize( var_ViewVec * var_MatrixTBN );
+
+	// compute the normal term
+#if defined( BMODEL_WATER ) 
+        #if defined( BMODEL_WATER_REFRACTION )
+			vec3 WaterNormal = normalmap2D( u_NormalMap, var_TexDiffuse );
+			N = normalize( WaterNormal );
+    	#endif 
+#elif defined( BMODEL_MULTI_LAYERS )
+	#if defined( BMODEL_BUMP )
+		N = TerrainApplyNormal( u_NormalMap, var_TexDiffuse, mask0, mask1, mask2, mask3 );
+	#endif	
+#else
+	#if defined( BMODEL_BUMP )
+		#if defined( BMODEL_INTERIOR )
+			N = normalmap2D( u_NormalMap, fract( var_TexDiffuse * vec2(u_InteriorParams.x,u_InteriorParams.y )));
+		#else
+			N = normalmap2D( u_NormalMap, var_TexDiffuse );
+		#endif
+	#endif
+#endif
+
+	// two side materials support
+	if( bool( gl_FrontFacing )) N = -N;
+
+	float GlossScale = 0.0;
+	float GlossSmoothness = 0.0;
+	float EmbossScale = 0.0;
+
+	// compute the material defines
+#if defined( BMODEL_MULTI_LAYERS )
+	float InitGlossScale[TERRAIN_NUM_LAYERS];
+	float InitGlossSmoothness[TERRAIN_NUM_LAYERS];
+	float InitEmbossScale[TERRAIN_NUM_LAYERS];
+	#if defined( BMODEL_EMBOSS )
+	InitEmbossScale = u_EmbossScale;
+	#endif
+	#if defined( BMODEL_SPECULAR )
+	InitGlossScale = u_GlossScale; 
+	InitGlossSmoothness = u_GlossSmoothness;
+	#endif
+	vec3 MaterialDefines = TerrainCalcMaterialDefines( InitGlossScale, InitGlossSmoothness, InitEmbossScale, mask0, mask1, mask2, mask3 );
+	#if defined( BMODEL_SPECULAR )
+	GlossScale = MaterialDefines.x; 
+	GlossSmoothness = MaterialDefines.y;
+	#endif
+	#if defined( BMODEL_EMBOSS )
+	EmbossScale = MaterialDefines.z;
+	#endif
+#else
+	#if defined( BMODEL_SPECULAR )
+	GlossScale = u_GlossScale;
+	GlossSmoothness = u_GlossSmoothness;
+	#endif
+	#if defined( BMODEL_EMBOSS )
+	EmbossScale = u_EmbossScale;
+	#endif
+#endif
+
+	// compute the diffuse, specular and emboss term
+#if defined( BMODEL_REFLECTION_PLANAR ) || defined( BMODEL_WATER_PLANAR ) || defined( BMODEL_PORTAL )
+	#if defined( BMODEL_WATER_PLANAR )
+		#if !defined( BMODEL_WATER_REFRACTION ) // will be calc-ed later
+			planar_reflection = texture2DProj( u_ColorMap, var_TexMirror );
+			diffuse.rgb = mix( planar_reflection.rgb, diffuse.rgb, u_PlanarReflectScale );
+		#endif
+		glossmap = vec3( 0.0 );
+	#elif defined( BMODEL_PORTAL )
+		// nothing here
+	#else
+		planar_reflection = reflectmap2D( u_ColorMap, var_TexMirror, N, gl_FragCoord.xyz, 0.15 ) * u_PlanarReflectScale;
+		diffuse = planar_reflection;
+	#endif
+#elif defined( BMODEL_MULTI_LAYERS )
+	#if defined( BMODEL_SPECULAR )
+		glossmap = DiffuseToGlossmapTerrain( u_ColorMap, var_TexDiffuse, mask0, mask1, mask2, mask3 );
+	#endif
+	#if defined( BMODEL_EMBOSS )
+		emboss = EmbossFilterTerrain( u_ColorMap, var_TexDiffuse, mask0, mask1, mask2, mask3, EmbossScale );
+	#endif
+#else
+	#if defined( BMODEL_SPECULAR )
+		#if defined( BMODEL_WATER )
+			glossmap = vec3( 0.0 );
+		#else
+			glossmap = DiffuseToGlossmap( glossmap );
+		#endif
+	#endif
+	#if defined( BMODEL_EMBOSS )
+		emboss = EmbossFilter( u_ColorMap, var_TexDiffuse, EmbossScale );
+	#endif
+#endif
+
+	// apply emboss filter
+#if defined( BMODEL_EMBOSS )
+	diffuse.rgb *= emboss;
+#endif
+
+	diffuse.rgb *= u_RenderColor.rgb; // kRenderTransColor
+
+#if defined( BMODEL_MONOCHROME )
+	diffuse.rgb = vec3( GetLuminance( diffuse.rgb )); 
+#endif
+
+	vec3 light = vec3( 0.0 ); // completely black if have no lightmaps
+	vec3 gloss = vec3( 0.0 );
+
+#if !defined( BMODEL_FULLBRIGHT )
+	#if defined( BMODEL_SUN_SHADOW )
+		float sunLit = SunShadowValue( var_SunCoord, length( var_ViewVec ));
+	#endif
+
+		// lighting the world polys
+	#if defined( BMODEL_APPLY_STYLE0 )
+		#if defined( BMODEL_SUN_STYLE0 )
+			ApplyLightStyleSun( var_TexLight0, N, V, glossmap, GlossSmoothness, GlossScale * 0.5, sunLit, light, gloss );
+		#else
+			ApplyLightStyle( var_TexLight0, N, V, glossmap, GlossSmoothness, GlossScale * 0.5, light, gloss );
+		#endif
+	#endif
+
+	#if defined( BMODEL_APPLY_STYLE1 )
+		#if defined( BMODEL_SUN_STYLE1 )
+			ApplyLightStyleSun( var_TexLight1, N, V, glossmap, GlossSmoothness, GlossScale * 0.5, sunLit, light, gloss );
+		#else
+			ApplyLightStyle( var_TexLight1, N, V, glossmap, GlossSmoothness, GlossScale * 0.5, light, gloss );
+		#endif
+	#endif
+
+	#if defined( BMODEL_APPLY_STYLE2 )
+		#if defined( BMODEL_SUN_STYLE2 )
+			ApplyLightStyleSun( var_TexLight2, N, V, glossmap, GlossSmoothness, GlossScale * 0.5, sunLit, light, gloss );
+		#else
+			ApplyLightStyle( var_TexLight2, N, V, glossmap, GlossSmoothness, GlossScale * 0.5, light, gloss );
+		#endif
+	#endif
+
+	#if defined( BMODEL_APPLY_STYLE3 )
+		#if defined( BMODEL_SUN_STYLE3 )
+			ApplyLightStyleSun( var_TexLight3, N, V, glossmap, GlossSmoothness, GlossScale * 0.5, sunLit, light, gloss );
+		#else
+			ApplyLightStyle( var_TexLight3, N, V, glossmap, GlossSmoothness, GlossScale * 0.5, light, gloss );
+		#endif
+	#endif
+
+	#if defined( BMODEL_APPLY_STYLE0 ) || defined( BMODEL_APPLY_STYLE1 ) || defined( BMODEL_APPLY_STYLE2 ) || defined( BMODEL_APPLY_STYLE3 )
+		light = min(( light * LIGHTMAP_SHIFT ), 2.0 );
+		gloss = min(( gloss * LIGHTMAP_SHIFT ), 2.0 );
+	#endif
+
+	diffuse.rgb *= light;
+
+	// apply specular lighting
+	#if defined( BMODEL_SPECULAR )
+		diffuse.rgb *= saturate( 1.0 - GetLuminance( gloss ));
+		diffuse.rgb += gloss;
+	#endif
+#endif
+
+#if defined( BMODEL_INTERIOR )
+	if( diffuse.a < 0.98 )
+		diffuse = InteriorMapping( diffuse, var_TexDiffuse, N, 0, var_ViewVec, var_Position ); // u_realtime is currently not used
+#endif
+
+//------------------------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------------
+#if defined( BMODEL_WATER ) && defined( BMODEL_WATER_REFRACTION )
+	
+	float WaterBorderFactor = 1.0, WaterAbsorbFactor = 1.0, WaterRefractFactor = 1.0, WaterAbsorbScale = 1.0;
+	float RefractScale = 0.25; 
+	const float u_zFar = -4096; // for consistency
+
+	// alpha works well between 67-135~... so I need to remap 0-255 to 67-135~. how to fix this?
+	alpha = RemapVal( alpha, vec4( 0.0, 1.0, 0.263, 0.500 ) );
+	alpha *= 0.015; // magic as well...
+
+	float fOwnDepth = gl_FragCoord.z;
+	fOwnDepth = linearizeDepth( u_zFar, fOwnDepth );
+	fOwnDepth = RemapVal( fOwnDepth, vec4( Z_NEAR, u_zFar, 0.0, 1.0 ) );
+
+	float fSampledDepth = texture2D( u_DepthMap, gl_FragCoord.xy * u_ScreenSizeInv ).r;
+	fSampledDepth = linearizeDepth( u_zFar, fSampledDepth );
+	fSampledDepth = RemapVal( fSampledDepth, vec4( Z_NEAR, u_zFar, 0.0, 1.0 ) );
+	float depthDelta = abs( fOwnDepth - fSampledDepth );
+
+	if( bool( u_UnderWater == 1.0 ))
+	{
+		WaterAbsorbScale = clamp( alpha - ( 1.0 / 255.0 ), 0.0, 1.0 ) * 10.0;
+		WaterBorderFactor = 1.0 - saturate( exp2( -192.0 * 100.0 * depthDelta ));
+		WaterRefractFactor = 1.0 - saturate( exp2( -192.0 * 5.0 * depthDelta ));
+		WaterAbsorbFactor = 1.0 - saturate( exp2( -192.0 * WaterAbsorbScale * depthDelta ));
+	}
+	else
+	{
+		WaterAbsorbScale = clamp( alpha - ( 1.0 / 255.0 ), 0.0, 1.0 ) * 50.0;
+		WaterBorderFactor = 1.0 - saturate( exp2( -768.0 * 100.0 * depthDelta ));
+		WaterRefractFactor = 1.0 - saturate( exp2( -768.0 * 5.0 * depthDelta ));
+		WaterAbsorbFactor = 1.0 - saturate( exp2( -768.0 * WaterAbsorbScale * depthDelta ));
+	}
+
+	float fDistortedDepth = texture2D( u_DepthMap, GetDistortedTexCoords( N, WaterRefractFactor, RefractScale )).r;
+	fDistortedDepth = linearizeDepth( u_zFar, fDistortedDepth );
+	fDistortedDepth = RemapVal( fDistortedDepth, vec4( Z_NEAR, u_zFar, 0.0, 1.0 ) );
+
+	WaterRefractFactor *= step( fDistortedDepth, fOwnDepth );
+
+	screenmap = GetScreenColorForRefraction( N, WaterRefractFactor, RefractScale );
+	vec4 WaterColor = u_RenderColor;
+
+	#if defined( REFLECTION_CUBEMAP ) && !defined( BMODEL_WATER_PLANAR )
+		cubemap_reflection = GetReflectionProbe( var_Position, u_ViewOrigin, N, u_ReflectScale.y ) * u_ReflectScale.x; 
+		fresnel = GetFresnel( V, N, u_Fresnel, u_ReflectScale.x );
+		diffuse.rgb = mix( diffuse.rgb, cubemap_reflection, fresnel );
+
+	#elif defined( BMODEL_WATER_PLANAR ) && defined( REFLECTION_CUBEMAP ) || defined( BMODEL_WATER_PLANAR ) && !defined( REFLECTION_CUBEMAP )
+                //dont use cubemap reflections for water, if planar is active
+		planar_reflection = reflectmap2D( u_ColorMap, var_TexMirror, N, gl_FragCoord.xyz, 0.15 ) * u_PlanarReflectScale;
+		fresnel = GetFresnel( V, N, u_Fresnel, u_PlanarReflectScale );
+		diffuse.rgb = mix( diffuse.rgb, planar_reflection.rgb, fresnel );
+	#endif
+
+	// apply global fog
+	if( u_FogParams.w > 0.0 )
+	{
+		float dist = length( var_ViewVec );
+		fogFactor = exp( -dist * u_FogParams.w );
+		fogFactor = clamp( fogFactor, 0.0, 1.0 );
+		diffuse.rgb = mix( u_FogParams.xyz, diffuse.rgb, fogFactor );
+	}
+
+	vec3 borderSmooth = mix( screenmap, screenmap * WaterColor.rgb, WaterBorderFactor ); // smooth transition between water and ground
+	vec3 refracted = mix( borderSmooth, diffuse.rgb * WaterColor.rgb, WaterAbsorbFactor ); // mix between refracted light and own water color
+   
+	diffuse.rgb = refracted;
+
+	gl_FragColor = diffuse;
+	// ---shader end for this condition---
+#else // not water and not refracted
+
+	// apply cubemap reflection
+#if defined( BMODEL_WATER ) && !defined( BMODEL_WATER_REFRACTION )
+	// skip cubemap
+#elif defined( REFLECTION_CUBEMAP )
+	#if defined( BMODEL_BUMP )
+		mat3 tbnBasis = mat3( normalize( var_MatrixTBN[0] ), normalize( var_MatrixTBN[1] ), normalize( var_MatrixTBN[2] ));
+		vec3 NW = normalize( tbnBasis * N );
+	#else
+		vec3 NW = var_WorldNormal;
+	#endif
+	fresnel = GetFresnel( V, N, u_Fresnel, u_ReflectScale.x );
+	cubemap_reflection = GetReflectionProbe( var_Position, u_ViewOrigin, NW, u_ReflectScale.y ) * u_ReflectScale.x;
+		//	vec3 testmix = mix( diffuse.rgb, cubemap_reflection.rgb, 0.85 );
+		//	gl_FragColor = vec4( testmix, 1.0 );
+		//	return;
+	diffuse.rgb += cubemap_reflection * fresnel;
+#endif
+
+	// apply global fog
+	if( u_FogParams.w > 0.0 )
+	{
+		float dist = length( var_ViewVec );
+		fogFactor = exp( -dist * u_FogParams.w );
+		fogFactor = clamp( fogFactor, 0.0, 1.0 );
+		diffuse.rgb = mix( u_FogParams.xyz, diffuse.rgb, fogFactor );
+	}
+	
+	gl_FragColor = vec4( diffuse.rgb, diffuse.a * alpha );
+#endif // /not water and not refracted
+}

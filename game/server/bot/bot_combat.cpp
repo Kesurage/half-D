@@ -1,0 +1,1373 @@
+
+
+#include "extdll.h"
+#include "util.h"
+#include "cbase.h"
+#include "player.h"
+#include "weapons/weapons.h"
+#include "game/gamerules.h"
+#include "monsters.h"
+
+#include "bot.h"
+
+
+extern int f_Observer;  // flag to indicate if player is in observer mode
+
+// weapon firing delay based on skill (min and max delay for each weapon)
+static const float primary_fire_delay[TOTAL_WEAPONS][5][2] = {
+	// WEAPON_NONE - NOT USED
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_KNIFE
+	{{0.0f, 0.1f}, {0.2f, 0.3f}, {0.3f, 0.5f}, {0.4f, 0.6f}, {0.6f, 1.0f}},
+	// WEAPON_BERETTA (9mm)
+	{{0.0f, 0.1f}, {0.1f, 0.2f}, {0.2f, 0.3f}, {0.3f, 0.4f}, {0.4f, 0.5f}},
+	// WEAPON_DEAGLE (357)
+	{{0.0f, 0.25f}, {0.2f, 0.5f}, {0.4f, 0.8f}, {1.0f, 1.3f}, {1.5f, 2.0f}},
+	// WEAPON_MRC (9mmAR)
+	{{0.0f, 0.1f}, {0.1f, 0.3f}, {0.3f, 0.5f}, {0.4f, 0.6f}, {0.5f, 0.8f}},
+	// WEAPON_CYCLER - NOT USED
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_CROSSBOW
+	{{0.0f, 0.25f}, {0.2f, 0.4f}, {0.5f, 0.7f}, {0.8f, 1.0f}, {1.0f, 1.3f}},
+	// WEAPON_SHOTGUN
+	{{0.0f, 0.25f}, {0.2f, 0.5f}, {0.4f, 0.8f}, {0.6f, 1.2f}, {0.8f, 2.0f}},
+	// WEAPON_RPG
+	{{1.0f, 1.4f}, {1.4f, 2.0f}, {1.8f, 2.6f}, {2.0f, 3.0f}, {2.5f, 3.8f}},
+	// WEAPON_GAUSS
+	{{0.0f, 0.1f}, {0.2f, 0.3f}, {0.3f, 0.5f}, {0.5f, 0.8f}, {1.0f, 1.2f}},
+	// WEAPON_EGON
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_HORNETGUN
+	{{0.0f, 0.1f}, {0.25f, 0.4f}, {0.4f, 0.7f}, {0.6f, 1.0f}, {1.0f, 1.5f}},
+	// WEAPON_HANDGRENADE
+	{{1.0f, 1.4f}, {1.4f, 2.0f}, {1.8f, 2.6f}, {2.0f, 3.0f}, {2.5f, 3.8f}},
+	// WEAPON_TRIPMINE
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_SATCHEL
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_SNARK
+	{{0.0f, 0.1f}, {0.1f, 0.2f}, {0.2f, 0.5f}, {0.5f, 0.7f}, {0.6f, 1.0f}},
+	// WEAPON_AR2
+	{{0.0f, 0.1f}, {0.1f, 0.3f}, {0.3f, 0.5f}, {0.4f, 0.6f}, {0.5f, 0.8f}},
+	// WEAPON_DRONE - NOT USED
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_SENTRY - NOT USED
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_HKMP5
+	{{0.0f, 0.1f}, {0.1f, 0.3f}, {0.3f, 0.5f}, {0.4f, 0.6f}, {0.5f, 0.8f}},
+	// WEAPON_FIVESEVEN
+	{{0.0f, 0.1f}, {0.1f, 0.2f}, {0.2f, 0.3f}, {0.3f, 0.4f}, {0.4f, 0.5f}},
+	// WEAPON_SNIPER
+	{{0.0f, 0.25f}, {0.2f, 0.4f}, {0.5f, 0.7f}, {0.8f, 1.0f}, {1.0f, 1.3f}},
+	// WEAPON_SHOTGUN_XM
+	{{0.0f, 0.25f}, {0.2f, 0.5f}, {0.4f, 0.8f}, {0.6f, 1.2f}, {0.8f, 2.0f}},
+	// WEAPON_G36C
+	{{0.0f, 0.1f}, {0.1f, 0.3f}, {0.3f, 0.5f}, {0.4f, 0.6f}, {0.5f, 0.8f}},
+};
+
+static const float secondary_fire_delay[TOTAL_WEAPONS][5][2] = {
+	// WEAPON_NONE - NOT USED
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_KNIFE - Not applicable
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_BERETTA (9mm)
+	{{0.0f, 0.1f}, {0.0f, 0.1f}, {0.1f, 0.2f}, {0.1f, 0.2f}, {0.2f, 0.4f}},
+	// WEAPON_DEAGLE (357)
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_MRC (9mmAR)
+	{{0.0f, 0.3f}, {0.5f, 0.8f}, {0.7f, 1.0f}, {1.0f, 1.6f}, {1.4f, 2.0f}},
+	// WEAPON_CYCLER - NOT USED
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_CROSSBOW
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_SHOTGUN
+	{{0.0f, 0.25f}, {0.2f, 0.5f}, {0.4f, 0.8f}, {0.6f, 1.2f}, {0.8f, 2.0f}},
+	// WEAPON_RPG - Not applicable
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_GAUSS
+	{{0.2f, 0.5f}, {0.3f, 0.7f}, {0.5f, 1.0f}, {0.8f, 1.5f}, {1.0f, 2.0f}},
+	// WEAPON_EGON - Not applicable
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_HORNETGUN
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_HANDGRENADE - Not applicable
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_TRIPMINE - Not applicable
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_SATCHEL
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_SNARK - Not applicable
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_AR2
+	{{0.0f, 0.1f}, {0.1f, 0.3f}, {0.3f, 0.5f}, {0.4f, 0.6f}, {0.5f, 0.8f}},
+	// WEAPON_DRONE - Not applicable
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_SENTRY - Not applicable
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_HKMP5 - Not applicable
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_FIVESEVEN - Not applicable
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_SNIPER - Not applicable
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_SHOTGUN_XM - Not applicable
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	// WEAPON_G36C - Not applicable
+	{{0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f}},
+	};   
+
+const ammo_check_t ammo_check[] = {
+   {"ammo_glockclip", g_WpnAmmo[WEAPON_BERETTA], BERETTA_MAX_CARRY},
+   {"ammo_9mmclip", g_WpnAmmo[WEAPON_BERETTA], BERETTA_MAX_CARRY},
+   {"ammo_9mmAR", g_WpnAmmo[WEAPON_MRC], MRC_MAX_CARRY},
+   {"ammo_9mmbox", g_WpnAmmo[WEAPON_BERETTA], BERETTA_MAX_CARRY},
+   {"ammo_mp5clip", g_WpnAmmo[WEAPON_MRC], MRC_MAX_CARRY},
+   {"ammo_chainboxclip", g_WpnAmmo[WEAPON_BERETTA], BERETTA_MAX_CARRY},
+   {"ammo_mp5grenades", "ARgrenades", M203_GRENADE_MAX_CARRY},
+   {"ammo_ARgrenades", "ARgrenades", M203_GRENADE_MAX_CARRY},
+   {"ammo_buckshot", g_WpnAmmo[WEAPON_SHOTGUN], BUCKSHOT_MAX_CARRY},
+   {"ammo_crossbow", g_WpnAmmo[WEAPON_CROSSBOW], BOLT_MAX_CARRY},
+   {"ammo_357", g_WpnAmmo[WEAPON_DEAGLE], DEAGLE_MAX_CARRY},
+   {"ammo_rpgclip", g_WpnAmmo[WEAPON_RPG], ROCKET_MAX_CARRY},
+   {"ammo_egonclip", g_WpnAmmo[WEAPON_GAUSS], URANIUM_MAX_CARRY},
+   {"ammo_gaussclip", g_WpnAmmo[WEAPON_GAUSS], URANIUM_MAX_CARRY},
+   {"ammo_ar2", g_WpnAmmo[WEAPON_AR2], AR2_MAX_CARRY},
+   {"ammo_ar2balls", "ar2balls", M203_GRENADE_MAX_CARRY},
+   {"ammo_fiveseven", g_WpnAmmo[WEAPON_FIVESEVEN], _57_MAX_CARRY },
+   {"ammo_g36c", g_WpnAmmo[WEAPON_G36C], G36C_MAX_CARRY},
+   {"ammo_hkmp5", g_WpnAmmo[WEAPON_HKMP5], HKMP5_MAX_CARRY },
+	{"ammo_sniper", g_WpnAmmo[WEAPON_SNIPER], SNIPER_MAX_CARRY},
+   {"", 0, 0}
+};
+
+// sounds for Bot taunting after a kill...
+static const char barney_taunt[][30] = { BA_TNT1, BA_TNT2, BA_TNT3, BA_TNT4, BA_TNT5 };
+static const char scientist_taunt[][30] = { SC_TNT1, SC_TNT2, SC_TNT3, SC_TNT4, SC_TNT5 };
+
+static const float bot_aim_speed[5] = { 600.0f, 480.0f, 380.0f, 300.0f, 240.0f };
+#define BOT_AIM_EASE   10.0f  // turn slows down when close to the target (higher = snappier)
+#define BOT_AIM_RADIUS 14.0f  // about half a player's width, sets how accurate the aim must be to shoot
+
+static float BotNormalizeAngle( float angle )
+{
+	while( angle > 180.0f )
+		angle -= 360.0f;
+	while( angle < -180.0f )
+		angle += 360.0f;
+	return angle;
+}
+
+static float BotClampFloat( float value, float low, float high )
+{
+	if( value < low )
+		return low;
+	if( value > high )
+		return high;
+	return value;
+}
+
+CBaseEntity * CBot::BotFindEnemy( void )
+{
+	Vector vecEnd;
+
+	if (pBotEnemy != NULL)  // does the bot already have an enemy?
+	{
+		vecEnd = pBotEnemy->EyePosition();
+
+		// if the enemy is dead or has switched to botcam mode...
+		// diffusion - NOTE: the takedamage check has been added because it sets in ClientDisconnect()
+		// this fixed the issue when bots were still attracted to "disconnected bots" when they leave (their leftover edicts)
+		if( !pBotEnemy->IsAlive() || (pBotEnemy->pev->effects & EF_NODRAW) || (pBotEnemy->pev->takedamage == DAMAGE_NO))
+		{
+			if (!pBotEnemy->IsAlive())  // is the enemy dead?, assume bot killed it
+			{
+			// stay here longer. I'm having a good time here!
+			if( IsCamping )
+				camping_end_time += RANDOM_LONG(15,30);
+			}
+
+			// don't have an enemy anymore so null out the pointer...
+			pBotEnemy = NULL;
+		}
+		else if ( FInViewCone( &vecEnd ) && FVisible( vecEnd ) )
+		{
+			// if enemy is still visible and in field of view, keep it
+
+			// face the enemy
+			Vector v_enemy = pBotEnemy->GetAbsOrigin() - GetAbsOrigin();
+			Vector bot_angles = UTIL_VecToAngles( v_enemy );
+
+			pev->ideal_yaw = bot_angles.y;
+
+			// check for wrap around of angle...
+			BotFixIdealYaw();
+
+			return pBotEnemy;
+		}
+	}
+
+	int i;
+	float nearestdistance = 1500;
+	CBaseEntity *pNewEnemy = NULL;
+
+	// search the world for players...
+	for( i = 1; i <= gpGlobals->maxClients; i++ )
+	{
+		CBasePlayer *pPlayer = (CBasePlayer*)UTIL_PlayerByIndex( i );
+
+		// skip invalid players and skip self (i.e. this bot)
+		if( !pPlayer || (pPlayer == this) )
+			continue;
+
+		// this can be a leftover edict of disconnected player or bot
+		if( pPlayer->pev->takedamage == DAMAGE_NO )
+			continue;
+
+		// skip this player if not alive (i.e. dead or dying)
+		if (pPlayer->pev->deadflag != DEAD_NO)
+			continue;
+
+		if( pPlayer->IsObserver() )
+			continue;
+
+		// skip players that are not bots in observer mode...
+		if (pPlayer->IsNetClient() && f_Observer)
+			continue;
+
+		// skip players that are in botcam mode...
+		if (pPlayer->pev->effects & EF_NODRAW)
+			continue;
+
+		// don't waste time on spawn-protected or godmode players
+		if( pPlayer->IsSpawnProtected || (pPlayer->pev->flags & FL_GODMODE) )
+			continue;
+
+		// is team play enabled?
+		if (g_pGameRules->IsTeamplay())
+		{
+			// don't target your teammates if team names match...
+			if( UTIL_TeamsMatch( g_pGameRules->GetTeamID( this ), g_pGameRules->GetTeamID( pPlayer ) ) )
+				continue;
+		}
+
+		vecEnd = pPlayer->EyePosition();
+
+		// see if bot can see the player...
+		if (FInViewCone( &vecEnd ) && FVisible( vecEnd ))
+		{
+			float distance = (pPlayer->GetAbsOrigin() - GetAbsOrigin()).Length();
+			if (distance < nearestdistance)
+			{
+				nearestdistance = distance;
+				pNewEnemy = pPlayer;
+
+				pBotUser = NULL;  // don't follow user when enemy found
+			}
+		}
+	}
+
+	// diffusion - now perform search for turrets.
+	CBaseEntity *pTurret = NULL;
+	while( (pTurret = UTIL_FindEntityByClassname( pTurret, "_playersentry" )) != NULL )
+	{
+		// get the owner - player
+		CBaseEntity *pTurretOwner = CBaseEntity::Instance( pTurret->pev->owner );
+		if( pTurretOwner )
+		{
+			if( !pTurret->IsAlive() )
+				continue;
+
+			// bot's turret
+			if( pTurretOwner == this )
+				continue;
+
+			if( g_pGameRules->IsTeamplay() )
+			{
+				// don't target your teammates if team names match...
+				if( UTIL_TeamsMatch( g_pGameRules->GetTeamID( this ), g_pGameRules->GetTeamID( pTurretOwner ) ) )
+					continue;
+			}
+
+			vecEnd = pTurret->EyePosition();
+
+			// it's an enemy turret
+			if( FInViewCone( &vecEnd ) && FVisible( vecEnd ) )
+			{
+				float turret_distance = (pTurret->GetAbsOrigin() - GetAbsOrigin()).Length();
+				// this turret is farther then current enemy player
+				if( turret_distance > nearestdistance )
+					continue;
+
+				nearestdistance = turret_distance;
+				pNewEnemy = pTurret;
+				pBotUser = NULL;  // don't follow user when enemy found
+			}
+		}
+		else
+			continue;
+	}
+
+	if( pNewEnemy )
+	{
+		// face the enemy
+		Vector v_enemy = pNewEnemy->GetAbsOrigin() - GetAbsOrigin();
+		Vector bot_angles = UTIL_VecToAngles( v_enemy );
+
+		pev->ideal_yaw = bot_angles.y;
+
+		// check for wrap around of angle...
+		BotFixIdealYaw();
+	}
+
+	return pNewEnemy;
+}
+
+
+Vector CBot::BotBodyTarget( CBaseEntity *pBotEnemy )
+{
+	Vector target;
+	float f_distance;
+	float f_scale;
+	int d_x, d_y, d_z;
+
+	f_distance = (pBotEnemy->GetAbsOrigin() - GetAbsOrigin()).Length();
+
+	if( f_distance > 1000 )
+		f_scale = 1.0;
+	else if( f_distance > 100 )
+		f_scale = f_distance / 1000.0;
+	else
+		f_scale = 0.1;
+
+	switch( bot_skill )
+	{
+	default:
+	case 0:
+		// VERY GOOD, same as from CBasePlayer::BodyTarget (in player.h)
+		target = pBotEnemy->Center() + pBotEnemy->pev->view_ofs * RANDOM_FLOAT( 0.5, 1.1 );
+		d_x = 0;  // no offset
+		d_y = 0;
+		d_z = 0;
+		break;
+	case 1:
+		// GOOD, offset a little for x, y, and z
+		target = pBotEnemy->Center() + pBotEnemy->pev->view_ofs;
+		d_x = RANDOM_FLOAT( -5, 5 ) * f_scale;
+		d_y = RANDOM_FLOAT( -5, 5 ) * f_scale;
+		d_z = RANDOM_FLOAT( -9, 9 ) * f_scale;
+		break;
+	case 2:
+		// FAIR, offset somewhat for x, y, and z
+		target = pBotEnemy->Center() + pBotEnemy->pev->view_ofs;
+		d_x = RANDOM_FLOAT( -9, 9 ) * f_scale;
+		d_y = RANDOM_FLOAT( -9, 9 ) * f_scale;
+		d_z = RANDOM_FLOAT( -15, 15 ) * f_scale;
+		break;
+	case 3:
+		// POOR, offset for x, y, and z
+		target = pBotEnemy->Center() + pBotEnemy->pev->view_ofs;
+		d_x = RANDOM_FLOAT( -16, 16 ) * f_scale;
+		d_y = RANDOM_FLOAT( -16, 16 ) * f_scale;
+		d_z = RANDOM_FLOAT( -20, 20 ) * f_scale;
+		break;
+	case 4:
+		// BAD, offset lots for x, y, and z
+		target = pBotEnemy->Center() + pBotEnemy->pev->view_ofs;
+		d_x = RANDOM_FLOAT( -20, 20 ) * f_scale;
+		d_y = RANDOM_FLOAT( -20, 20 ) * f_scale;
+		d_z = RANDOM_FLOAT( -27, 27 ) * f_scale;
+		break;
+	}
+
+	target = target + Vector( d_x, d_y, d_z );
+
+	return target;
+}
+
+
+void CBot::BotWeaponInventory( void )
+{
+	int i;
+
+	// initialize the elements of the weapons arrays...
+	for (i = 0; i < MAX_WEAPONS; i++)
+	{
+		weapon_ptr[i] = NULL;
+		primary_ammo[i] = 0;
+		secondary_ammo[i] = 0;
+	}
+
+	// find out which weapons the bot is carrying...
+	for (i = 0; i < MAX_ITEM_TYPES; i++)
+	{
+		CBasePlayerItem *pItem = NULL;
+
+		if (m_rgpPlayerItems[i])
+		{
+			pItem = m_rgpPlayerItems[i];
+			while (pItem)
+			{
+				weapon_ptr[pItem->m_iId] = pItem;  // store pointer to item
+				pItem = pItem->m_pNext;
+			}
+		}
+	}
+
+	// find out how much ammo of each type the bot is carrying...
+	for (i = 0; i < MAX_AMMO_SLOTS; i++)
+	{
+		if (!CBasePlayerItem::AmmoInfoArray[i].pszName)
+			continue;
+
+	// diffusion: added clips check (   + ((CBasePlayerWeapon*)m_rgpPlayerItems[i])->m_iClip;   )
+
+		if( strcmp( g_WpnAmmo[WEAPON_BERETTA], CBasePlayerItem::AmmoInfoArray[i].pszName ) == 0 )
+		{
+			primary_ammo[WEAPON_BERETTA] = m_rgAmmo[i];
+			if( weapon_ptr[WEAPON_BERETTA] )
+				primary_ammo[WEAPON_BERETTA] += ((CBasePlayerWeapon *)weapon_ptr[WEAPON_BERETTA])->m_iClip;
+		}
+		else if( strcmp( g_WpnAmmo[WEAPON_DEAGLE], CBasePlayerItem::AmmoInfoArray[i].pszName ) == 0 )
+		{
+			primary_ammo[WEAPON_DEAGLE] = m_rgAmmo[i];
+			if( weapon_ptr[WEAPON_DEAGLE] )
+				primary_ammo[WEAPON_DEAGLE] += ((CBasePlayerWeapon *)weapon_ptr[WEAPON_DEAGLE])->m_iClip;
+		}
+		else if( strcmp( g_WpnAmmo[WEAPON_MRC], CBasePlayerItem::AmmoInfoArray[i].pszName ) == 0 )
+		{
+			primary_ammo[WEAPON_MRC] = m_rgAmmo[i];
+			if( weapon_ptr[WEAPON_MRC] )
+				primary_ammo[WEAPON_MRC] += ((CBasePlayerWeapon *)weapon_ptr[WEAPON_MRC])->m_iClip;
+		}
+		else if( strcmp( g_WpnAmmo[WEAPON_G36C], CBasePlayerItem::AmmoInfoArray[i].pszName ) == 0 )
+		{
+			primary_ammo[WEAPON_G36C] = m_rgAmmo[i];
+			if( weapon_ptr[WEAPON_G36C] )
+				primary_ammo[WEAPON_G36C] += ((CBasePlayerWeapon *)weapon_ptr[WEAPON_G36C])->m_iClip;
+		}
+		else if( strcmp( g_WpnAmmo[WEAPON_HKMP5], CBasePlayerItem::AmmoInfoArray[i].pszName ) == 0 )
+		{
+			primary_ammo[WEAPON_HKMP5] = m_rgAmmo[i];
+			if( weapon_ptr[WEAPON_HKMP5] )
+				primary_ammo[WEAPON_HKMP5] += ((CBasePlayerWeapon *)weapon_ptr[WEAPON_HKMP5])->m_iClip;
+		}
+		else if( strcmp( g_WpnAmmo[WEAPON_FIVESEVEN], CBasePlayerItem::AmmoInfoArray[i].pszName ) == 0 )
+		{
+			primary_ammo[WEAPON_FIVESEVEN] = m_rgAmmo[i];
+			if( weapon_ptr[WEAPON_FIVESEVEN] )
+				primary_ammo[WEAPON_FIVESEVEN] += ((CBasePlayerWeapon *)weapon_ptr[WEAPON_FIVESEVEN])->m_iClip;
+		}
+		else if( strcmp( "ARgrenades", CBasePlayerItem::AmmoInfoArray[i].pszName ) == 0 )
+		{
+			secondary_ammo[WEAPON_MRC] = m_rgAmmo[i];
+		}
+		else if (strcmp(g_WpnAmmo[WEAPON_CROSSBOW], CBasePlayerItem::AmmoInfoArray[i].pszName) == 0)
+		{
+			primary_ammo[WEAPON_CROSSBOW] = m_rgAmmo[i];
+			if( weapon_ptr[WEAPON_CROSSBOW] )
+				primary_ammo[WEAPON_CROSSBOW] += ((CBasePlayerWeapon *)weapon_ptr[WEAPON_CROSSBOW])->m_iClip;
+		}
+		else if (stricmp(g_WpnAmmo[WEAPON_SHOTGUN], CBasePlayerItem::AmmoInfoArray[i].pszName) == 0)
+		{
+			primary_ammo[WEAPON_SHOTGUN] = m_rgAmmo[i];
+			if( weapon_ptr[WEAPON_SHOTGUN] )
+				primary_ammo[WEAPON_SHOTGUN] += ((CBasePlayerWeapon *)weapon_ptr[WEAPON_SHOTGUN])->m_iClip;
+			primary_ammo[WEAPON_SHOTGUN_XM] = m_rgAmmo[i];
+			if( weapon_ptr[WEAPON_SHOTGUN_XM] )
+				primary_ammo[WEAPON_SHOTGUN_XM] += ((CBasePlayerWeapon *)weapon_ptr[WEAPON_SHOTGUN_XM])->m_iClip;
+		}
+		else if( stricmp( g_WpnAmmo[WEAPON_RPG], CBasePlayerItem::AmmoInfoArray[i].pszName ) == 0 )
+		{
+			primary_ammo[WEAPON_RPG] = m_rgAmmo[i];
+			if( weapon_ptr[WEAPON_RPG] )
+				primary_ammo[WEAPON_RPG] += ((CBasePlayerWeapon *)weapon_ptr[WEAPON_RPG])->m_iClip;
+		}
+		else if( stricmp( g_WpnAmmo[WEAPON_SNIPER], CBasePlayerItem::AmmoInfoArray[i].pszName ) == 0 )
+		{
+			primary_ammo[WEAPON_SNIPER] = m_rgAmmo[i];
+			if( weapon_ptr[WEAPON_SNIPER] )
+				primary_ammo[WEAPON_SNIPER] += ((CBasePlayerWeapon *)weapon_ptr[WEAPON_SNIPER])->m_iClip;
+		}
+		else if (strcmp(g_WpnAmmo[WEAPON_GAUSS], CBasePlayerItem::AmmoInfoArray[i].pszName) == 0)
+		{
+			primary_ammo[WEAPON_GAUSS] = m_rgAmmo[i];
+		}
+		else if( strcmp( g_WpnAmmo[WEAPON_AR2], CBasePlayerItem::AmmoInfoArray[i].pszName ) == 0 )
+		{
+			primary_ammo[WEAPON_AR2] = m_rgAmmo[i];
+			if( weapon_ptr[WEAPON_AR2] )
+				primary_ammo[WEAPON_AR2] += ((CBasePlayerWeapon *)weapon_ptr[WEAPON_AR2])->m_iClip;
+		}
+		else if( strcmp( "ar2balls", CBasePlayerItem::AmmoInfoArray[i].pszName ) == 0 )
+		{
+			secondary_ammo[WEAPON_AR2] = m_rgAmmo[i];
+		}
+		else if (stricmp(g_WpnAmmo[WEAPON_HANDGRENADE], CBasePlayerItem::AmmoInfoArray[i].pszName) == 0)
+		primary_ammo[WEAPON_HANDGRENADE] = m_rgAmmo[i];
+		else if (stricmp( g_WpnAmmo[WEAPON_TRIPMINE], CBasePlayerItem::AmmoInfoArray[i].pszName) == 0)
+		primary_ammo[WEAPON_TRIPMINE] = m_rgAmmo[i];
+		else if (stricmp(g_WpnAmmo[WEAPON_SATCHEL], CBasePlayerItem::AmmoInfoArray[i].pszName) == 0)
+		primary_ammo[WEAPON_SATCHEL] = m_rgAmmo[i];
+		else if (stricmp( g_WpnAmmo[WEAPON_SNARK], CBasePlayerItem::AmmoInfoArray[i].pszName) == 0)
+		primary_ammo[WEAPON_SNARK] = m_rgAmmo[i];
+	}
+}
+
+
+// specifing a weapon_choice allows you to choose the weapon the bot will
+// use (assuming enough ammo exists for that weapon)
+// BotFireWeapon will return TRUE if weapon was fired, FALSE otherwise
+// primary is used to indicate whether you want primary or secondary fire
+// if you have specified a weapon using weapon_choice
+
+BOOL CBot::BotFireWeapon( Vector v_enemy_origin, int weapon_choice, BOOL primary )
+{
+   CBasePlayerItem *new_weapon;
+   BOOL enemy_below;
+
+   // is it time to check weapons inventory yet?
+   if (f_weapon_inventory_time <= gpGlobals->time)
+   {
+	  // check weapon and ammo inventory then update check time...
+	  BotWeaponInventory();
+	  f_weapon_inventory_time = gpGlobals->time + 1.0;
+   }
+
+   Vector v_enemy = v_enemy_origin - GetGunPosition( );
+
+   float distance = v_enemy.Length();  // how far away is the enemy?
+
+   // is enemy at least 45 units below bot? (for handgrenades and snarks)
+   if (v_enemy_origin.z < (GetAbsOrigin().z - 45))
+	  enemy_below = TRUE;
+   else
+	  enemy_below = FALSE;
+
+   // do electroblast
+   if( BlastChargesReady > 0 && distance < 200 && (gpGlobals->time > last_electroblast_time + 15) )
+   {
+	   last_electroblast_time = gpGlobals->time;
+	   ElectroblastButton = true;
+	   // set next time to "shoot"
+	   f_shoot_time = gpGlobals->time + 0.2 + (bot_skill * 0.1);
+	   return TRUE;
+   }
+
+   if( IsCamping )
+   {
+		goto camping_weapons;
+   }
+
+	// if bot is carrying the crowbar...
+	if (HasWeapon(WEAPON_KNIFE))
+	{
+		// if close to enemy, and skill level is 1, 2 or 3, use the crowbar
+		if (((distance <= BOT_KNIFE_DISTANCE) /*&& (bot_skill <= 2)*/ && (weapon_choice == 0)) || (weapon_choice == WEAPON_KNIFE))
+		{
+			new_weapon = weapon_ptr[WEAPON_KNIFE];
+
+			// check if the bot isn't already using this item...
+			if( m_pActiveItem != new_weapon )
+			{
+				SelectItem( "weapon_knife" );
+				stop_hold_attack_button_time = 0;
+				IsHoldingAttackButton = false;
+			}
+
+			bool use_secondary = (RANDOM_LONG( 0, 100 ) > 75);
+			if( use_secondary )
+				pev->button |= IN_ATTACK2;
+			else
+				pev->button |= IN_ATTACK;  // use primary attack (whack! whack!)
+
+			// set next time to "shoot"
+			f_shoot_time = gpGlobals->time + 0.1 + RANDOM_FLOAT(primary_fire_delay[WEAPON_KNIFE][bot_skill][0], primary_fire_delay[WEAPON_KNIFE][bot_skill][1]);
+			return TRUE;
+		}
+	}
+
+   // if bot is carrying any hand grenades and enemy is below bot...
+   if ((HasWeapon(WEAPON_HANDGRENADE)) && (enemy_below))
+   {
+	  long use_grenade = RANDOM_LONG(1,100);
+
+	  // use hand grenades about 30% of the time...
+	  if (((distance > 250) && (distance < 750) &&
+		   (weapon_choice == 0) && (use_grenade <= 30)) ||
+		  (weapon_choice == WEAPON_HANDGRENADE))
+	  {
+// BigGuy - START
+		 new_weapon = weapon_ptr[WEAPON_HANDGRENADE];
+
+		 // check if the bot isn't already using this item...
+		 if( m_pActiveItem != new_weapon )
+		 {
+			 SelectItem( "weapon_handgrenade" );  // select the hand grenades
+			 stop_hold_attack_button_time = 0;
+			 IsHoldingAttackButton = false;
+		 }
+
+		 pev->button |= IN_ATTACK;  // use primary attack (boom!)
+
+		 // set next time to "shoot"
+		 f_shoot_time = gpGlobals->time + 0.1 + 
+			RANDOM_FLOAT(primary_fire_delay[WEAPON_HANDGRENADE][bot_skill][0],
+						 primary_fire_delay[WEAPON_HANDGRENADE][bot_skill][1]);
+		 return TRUE;
+// BigGuy - END
+	  }
+   }
+
+   if( (HasWeapon( WEAPON_SHOTGUN_XM )) && (pev->waterlevel != 3) )
+   {
+	   // if close enough for good shotgun blasts...
+	   if( ((distance < 700) && (weapon_choice == 0)) ||
+		   (weapon_choice == WEAPON_SHOTGUN_XM) )
+	   {
+		   new_weapon = weapon_ptr[WEAPON_SHOTGUN_XM];
+
+		   // check if the bot has any ammo left for this weapon...
+		   if( primary_ammo[WEAPON_SHOTGUN_XM] > 0 )
+		   {
+			   // check if the bot isn't already using this item...
+			   if( m_pActiveItem != new_weapon )
+			   {
+				   SelectItem( "weapon_shotgun_xm" );  // select the shotgun
+				   stop_hold_attack_button_time = 0;
+				   IsHoldingAttackButton = false;
+			   }
+
+			   long use_secondary = RANDOM_LONG( 1, 100 );
+
+			   // use secondary attack about 30% of the time
+			   if( (use_secondary <= 30) && (primary_ammo[WEAPON_SHOTGUN_XM] >= 2) )
+			   {
+				   // BigGuy - START
+				   pev->button |= IN_ATTACK2;  // use secondary attack (bang! bang!)
+
+				   // set next time to shoot
+				   f_shoot_time = gpGlobals->time + 1.0 +
+					   RANDOM_FLOAT( secondary_fire_delay[WEAPON_SHOTGUN_XM][bot_skill][0],
+						   secondary_fire_delay[WEAPON_SHOTGUN_XM][bot_skill][1] );
+			   }
+			   // BigGuy - END
+			   else
+			   {
+				   pev->button |= IN_ATTACK;  // use primary attack (bang! bang!)
+
+				   // set next time to shoot
+				   f_shoot_time = gpGlobals->time + 0.75 +
+					   RANDOM_FLOAT( primary_fire_delay[WEAPON_SHOTGUN_XM][bot_skill][0],
+						   primary_fire_delay[WEAPON_SHOTGUN_XM][bot_skill][1] );
+			   }
+
+			   return TRUE;
+		   }
+	   }
+   }
+
+   // if the bot is carrying the shotgun (can't use underwater)...
+   if ((HasWeapon(WEAPON_SHOTGUN)) && (pev->waterlevel != 3))
+   {
+	  // if close enough for good shotgun blasts...
+	  if (((distance < 600) && (weapon_choice == 0)) ||
+		  (weapon_choice == WEAPON_SHOTGUN))
+	  {
+		 new_weapon = weapon_ptr[WEAPON_SHOTGUN];
+
+		 // check if the bot has any ammo left for this weapon...
+		 if (primary_ammo[WEAPON_SHOTGUN] > 0)
+		 {
+			// check if the bot isn't already using this item...
+			 if( m_pActiveItem != new_weapon )
+			 {
+				 SelectItem( "weapon_shotgun" );  // select the shotgun
+				 stop_hold_attack_button_time = 0;
+				 IsHoldingAttackButton = false;
+			 }
+
+			long use_secondary = RANDOM_LONG(1,100);
+
+			// use secondary attack about 30% of the time
+			if ((use_secondary <= 30) && (primary_ammo[WEAPON_SHOTGUN] >= 2))
+			{
+			   pev->button |= IN_ATTACK2;  // use secondary attack (bang! bang!)
+
+			   // set next time to shoot
+			   f_shoot_time = gpGlobals->time + 1.0 +
+				  RANDOM_FLOAT(secondary_fire_delay[WEAPON_SHOTGUN][bot_skill][0],
+							   secondary_fire_delay[WEAPON_SHOTGUN][bot_skill][1]);
+			}
+			else
+			{
+			   pev->button |= IN_ATTACK;  // use primary attack (bang! bang!)
+
+			   // set next time to shoot
+			   f_shoot_time = gpGlobals->time + 0.75 +
+				  RANDOM_FLOAT(primary_fire_delay[WEAPON_SHOTGUN][bot_skill][0],
+							   primary_fire_delay[WEAPON_SHOTGUN][bot_skill][1]);
+			}
+
+			return TRUE;
+		 }
+	  }
+   }
+
+   // if the bot is carrying the 357/DEAGLE, (can't use underwater)...
+   if ((HasWeapon(WEAPON_DEAGLE)) && (pev->waterlevel != 3))
+   {
+	  // if close enough for 357 shot...
+	  if (((distance < 1000) && (weapon_choice == 0)) ||
+		  (weapon_choice == WEAPON_DEAGLE))
+	  {
+		 new_weapon = weapon_ptr[WEAPON_DEAGLE];
+
+		 // check if the bot has any ammo left for this weapon...
+		 if (primary_ammo[WEAPON_DEAGLE] > 0)
+		 {
+			// check if the bot isn't already using this item...
+			 if( m_pActiveItem != new_weapon )
+			 {
+				 SelectItem( "weapon_357" );
+				 stop_hold_attack_button_time = 0;
+				 IsHoldingAttackButton = false;
+			 }
+
+			pev->button |= IN_ATTACK;  // use primary attack (bang! bang!)
+
+			// set next time to shoot
+			f_shoot_time = gpGlobals->time + 0.75 +
+			   RANDOM_FLOAT(primary_fire_delay[WEAPON_DEAGLE][bot_skill][0],
+							primary_fire_delay[WEAPON_DEAGLE][bot_skill][1]);
+
+			return TRUE;
+		 }
+	  }
+   }
+
+   if( (HasWeapon( WEAPON_FIVESEVEN )) && (pev->waterlevel != 3) )
+   {
+	   // if close enough for 357 shot...
+	   if( ((distance < 1000) && (weapon_choice == 0)) ||
+		   (weapon_choice == WEAPON_FIVESEVEN) )
+	   {
+		   new_weapon = weapon_ptr[WEAPON_FIVESEVEN];
+
+		   // check if the bot has any ammo left for this weapon...
+		   if( primary_ammo[WEAPON_FIVESEVEN] > 0 )
+		   {
+			   // check if the bot isn't already using this item...
+			   if( m_pActiveItem != new_weapon )
+			   {
+				   SelectItem( "weapon_fiveseven" );
+				   stop_hold_attack_button_time = 0;
+				   IsHoldingAttackButton = false;
+			   }
+
+			   pev->button |= IN_ATTACK;  // use primary attack (bang! bang!)
+
+			   // set next time to shoot
+			   f_shoot_time = gpGlobals->time + 0.25 +
+				   RANDOM_FLOAT( primary_fire_delay[WEAPON_FIVESEVEN][bot_skill][0],
+					   primary_fire_delay[WEAPON_FIVESEVEN][bot_skill][1] );
+
+			   return TRUE;
+		   }
+	   }
+   }
+
+	// if the bot is carrying the MRC (can't use underwater)...
+	if ((HasWeapon(WEAPON_MRC)) && (pev->waterlevel != 3))
+	{
+		long use_secondary = RANDOM_LONG(1,100);
+
+		// use secondary attack about 15% of the time...
+		if (((distance > 300) && (distance < 1000) && (weapon_choice == 0) && (use_secondary <= 15)) || ((weapon_choice == WEAPON_MRC) && (primary == FALSE)))
+		{
+			// at some point we need to fire upwards in the air slightly
+			// for long distance kills.  for right now, just fire the
+			// grenade at the poor sucker.
+
+			new_weapon = weapon_ptr[WEAPON_MRC];
+
+			// check if the bot has any ammo left for this weapon...
+			if (secondary_ammo[WEAPON_MRC] > 0)
+			{
+				// aim correctly
+				Vector EnemyCalculatedPos = v_enemy_origin;
+				EnemyCalculatedPos += ((EnemyCalculatedPos - GetAbsOrigin()).Length() / 800) * pBotEnemy->GetAbsVelocity();
+				Vector vecToss = VecCheckThrow( pev, GetGunPosition(), EnemyCalculatedPos, 800, 0.5 );
+				if( vecToss != g_vecZero )
+				{
+					// check if the bot isn't already using this item...
+					if( m_pActiveItem != new_weapon )
+					{
+						SelectItem( "weapon_9mmAR" );  // select the 9mmAR (MP5)
+						stop_hold_attack_button_time = 0;
+						IsHoldingAttackButton = false;
+					}
+
+					pev->v_angle = UTIL_VecToAngles( vecToss );
+
+					if( pev->v_angle.x > 180 )
+						pev->v_angle.x -= 360;
+
+					if( pev->v_angle.y > 180 )
+						pev->v_angle.y -= 360;
+
+					pev->angles.x = -pev->v_angle.x / 3;
+					pev->angles.y = pev->v_angle.y;
+					pev->angles.z = 0;
+
+					pev->idealpitch = pev->v_angle.x;
+					BotFixIdealPitch();
+
+					pev->button |= IN_ATTACK2;  // use secodnary attack (boom!)
+
+					f_move_speed = 0;
+
+					// set next time to shoot
+					// if( RANDOM_LONG( 0, 100 ) > 75 )
+					f_shoot_time = gpGlobals->time + RANDOM_FLOAT( secondary_fire_delay[WEAPON_MRC][bot_skill][0], secondary_fire_delay[WEAPON_MRC][bot_skill][1] );
+					//else
+					//f_shoot_time = gpGlobals->time;
+
+					return TRUE;
+				}
+			}
+		}
+
+		// if close enough for good MP5 shot...
+		if (((distance < 1000) && (weapon_choice == 0)) || (weapon_choice == WEAPON_MRC))
+		{
+			new_weapon = weapon_ptr[WEAPON_MRC];
+
+			// check if the bot has any ammo left for this weapon...
+			if (primary_ammo[WEAPON_MRC] > 0)
+			{
+				// check if the bot isn't already using this item...
+				if( m_pActiveItem != new_weapon )
+				{
+					SelectItem( "weapon_9mmAR" );  // select the 9mmAR (MP5)
+					stop_hold_attack_button_time = 0;
+					IsHoldingAttackButton = false;
+				}
+
+				pev->button |= IN_ATTACK;  // use primary attack (bang! bang!)
+
+				if( !IsHoldingAttackButton && stop_hold_attack_button_time == 0 )
+				{
+					IsHoldingAttackButton = true;
+					stop_hold_attack_button_time = gpGlobals->time + RANDOM_FLOAT( 0.3, 0.7 );
+				}
+
+				if( IsHoldingAttackButton )
+				{
+					if( stop_hold_attack_button_time < gpGlobals->time )
+					{
+						stop_hold_attack_button_time = 0;
+						f_shoot_time = gpGlobals->time + RANDOM_FLOAT( primary_fire_delay[WEAPON_MRC][bot_skill][0], primary_fire_delay[WEAPON_MRC][bot_skill][1] );
+						IsHoldingAttackButton = false;
+					}
+					else
+						f_shoot_time = gpGlobals->time;
+				}
+
+				// set next time to shoot
+				//	if( RANDOM_LONG( 0, 100 ) > 75 )
+				//		f_shoot_time = gpGlobals->time + RANDOM_FLOAT( primary_fire_delay[WEAPON_MRC][bot_skill][0], primary_fire_delay[WEAPON_MRC][bot_skill][1] );
+				//	else
+				//f_shoot_time = gpGlobals->time;
+
+				return TRUE;
+			}
+		}
+	}
+
+	if( (HasWeapon( WEAPON_AR2 )) && (pev->waterlevel != 3) )
+	{
+		long use_secondary = RANDOM_LONG( 1, 100 );
+
+		// use secondary attack about 15% of the time...
+		if( ((distance > 300) && (distance < 1500) && (weapon_choice == 0) && (use_secondary <= 15)) || ((weapon_choice == WEAPON_AR2) && (primary == FALSE)) )
+		{
+			new_weapon = weapon_ptr[WEAPON_AR2];
+
+			// check if the bot has any ammo left for this weapon...
+			if( secondary_ammo[WEAPON_AR2] > 0 )
+			{
+				// check if the bot isn't already using this item...
+				if( m_pActiveItem != new_weapon )
+				{
+					SelectItem( "weapon_ar2" );
+					stop_hold_attack_button_time = 0;
+					IsHoldingAttackButton = false;
+				}
+
+				pev->button |= IN_ATTACK2;  // use secondary attack (boom!)
+
+				// set next time to shoot
+				f_shoot_time = gpGlobals->time + 0.5 + RANDOM_FLOAT( secondary_fire_delay[WEAPON_AR2][bot_skill][0], secondary_fire_delay[WEAPON_AR2][bot_skill][1] );
+
+				return TRUE;
+			}
+		}
+
+		// if close enough for good AR2 shot...
+		if( ((distance < 1200) && (weapon_choice == 0)) || (weapon_choice == WEAPON_AR2) )
+		{
+			new_weapon = weapon_ptr[WEAPON_AR2];
+
+			// check if the bot has any ammo left for this weapon...
+			if( primary_ammo[WEAPON_AR2] > 0 )
+			{
+				// check if the bot isn't already using this item...
+				if( m_pActiveItem != new_weapon )
+				{
+					SelectItem( "weapon_ar2" );
+					stop_hold_attack_button_time = 0;
+					IsHoldingAttackButton = false;
+				}
+
+				pev->button |= IN_ATTACK;  // use primary attack (bang! bang!)
+
+				if( !IsHoldingAttackButton && stop_hold_attack_button_time == 0 )
+				{
+					IsHoldingAttackButton = true;
+					stop_hold_attack_button_time = gpGlobals->time + RANDOM_FLOAT( 0.3, 0.7 );
+				}
+
+				if( IsHoldingAttackButton )
+				{
+					if( stop_hold_attack_button_time < gpGlobals->time )
+					{
+						stop_hold_attack_button_time = 0;
+						f_shoot_time = gpGlobals->time + RANDOM_FLOAT( primary_fire_delay[WEAPON_AR2][bot_skill][0], primary_fire_delay[WEAPON_AR2][bot_skill][1] );
+						IsHoldingAttackButton = false;
+					}
+					else
+						f_shoot_time = gpGlobals->time;
+				}
+
+				// set next time to shoot
+				//	if( RANDOM_LONG( 0, 100 ) > 75 )
+				//		f_shoot_time = gpGlobals->time + RANDOM_FLOAT( primary_fire_delay[WEAPON_AR2][bot_skill][0], primary_fire_delay[WEAPON_AR2][bot_skill][1] );
+				//	else
+				//f_shoot_time = gpGlobals->time;
+
+				return TRUE;
+			}
+		}
+	}
+
+	if( (HasWeapon( WEAPON_HKMP5 )) && (pev->waterlevel != 3) )
+	{
+		if( ((distance < 1000) && (weapon_choice == 0)) || (weapon_choice == WEAPON_HKMP5) )
+		{
+			new_weapon = weapon_ptr[WEAPON_HKMP5];
+
+			// check if the bot has any ammo left for this weapon...
+			if( primary_ammo[WEAPON_HKMP5] > 0 )
+			{
+				// check if the bot isn't already using this item...
+				if( m_pActiveItem != new_weapon )
+				{
+					SelectItem( "weapon_hkmp5" );
+					stop_hold_attack_button_time = 0;
+					IsHoldingAttackButton = false;
+				}
+
+				pev->button |= IN_ATTACK;  // use primary attack (bang! bang!)
+
+				if( !IsHoldingAttackButton && stop_hold_attack_button_time == 0 )
+				{
+					IsHoldingAttackButton = true;
+					stop_hold_attack_button_time = gpGlobals->time + RANDOM_FLOAT( 0.3, 0.7 );
+				}
+
+				if( IsHoldingAttackButton )
+				{
+					if( stop_hold_attack_button_time < gpGlobals->time )
+					{
+						stop_hold_attack_button_time = 0;
+						f_shoot_time = gpGlobals->time + RANDOM_FLOAT( primary_fire_delay[WEAPON_HKMP5][bot_skill][0], primary_fire_delay[WEAPON_HKMP5][bot_skill][1] );
+						IsHoldingAttackButton = false;
+					}
+					else
+						f_shoot_time = gpGlobals->time;
+				}
+
+				// set next time to shoot
+				//	if( RANDOM_LONG( 0, 100 ) > 75 )
+				//		f_shoot_time = gpGlobals->time + RANDOM_FLOAT( primary_fire_delay[WEAPON_HKMP5][bot_skill][0], primary_fire_delay[WEAPON_HKMP5][bot_skill][1] );
+				//	else
+				//f_shoot_time = gpGlobals->time;
+
+				return TRUE;
+			}
+		}
+	}
+
+camping_weapons:
+	//===================== WEAPON_GAUSS =======================================================================
+	// if the bot is carrying the alien sniper gun (can't use underwater)...
+	if( (HasWeapon( WEAPON_GAUSS )) && (pev->waterlevel != 3) )
+	{
+		if( (weapon_choice == 0) || (weapon_choice == WEAPON_GAUSS) )
+		{
+			new_weapon = weapon_ptr[WEAPON_GAUSS];
+
+			// check if the bot has any ammo left for this weapon...
+			if( primary_ammo[WEAPON_GAUSS] > 1 )
+			{
+				// check if the bot isn't already using this item...
+				if( m_pActiveItem != new_weapon )
+				{
+					SelectItem( "weapon_gausniper" );  // select the gauss sniper rifle
+					stop_hold_attack_button_time = 0;
+					IsHoldingAttackButton = false;
+				}
+
+				// diffusion - it's a one-tap sniper rifle, no charging
+				pev->button |= IN_ATTACK;
+
+				// set next time to shoot
+				f_shoot_time = gpGlobals->time + 0.2 + RANDOM_FLOAT( primary_fire_delay[WEAPON_GAUSS][bot_skill][0], primary_fire_delay[WEAPON_GAUSS][bot_skill][1] );
+
+				return TRUE;
+			}
+		}
+	}
+	//===================== WEAPON_CROSSBOW =======================================================================
+	// if the bot is carrying the crossbow...
+	if (HasWeapon(WEAPON_CROSSBOW))
+	{
+		// if bot is not too close for crossbow and not too far...
+		if (( (IsCamping || ((distance > 250) && (distance < 1500)) ) && (weapon_choice == 0)) || (weapon_choice == WEAPON_CROSSBOW))
+		{
+			new_weapon = weapon_ptr[WEAPON_CROSSBOW];
+
+			// check if the bot has any ammo left for this weapon...
+			if (primary_ammo[WEAPON_CROSSBOW] > 0)
+			{
+				// aim correctly
+				Vector EnemyCalculatedPos = v_enemy_origin;
+				EnemyCalculatedPos += ((EnemyCalculatedPos - pev->origin).Length() / 3500) * pBotEnemy->GetAbsVelocity();
+				Vector vecToss = VecCheckThrow( pev, GetGunPosition(), EnemyCalculatedPos, 3500, 0.35 ); // 3500 is BOLT_AIR_VELOCITY, 0.35 is pev->gravity of the bolt
+				if( vecToss != g_vecZero )
+				{
+					// check if the bot isn't already using this item...
+					if( m_pActiveItem != new_weapon )
+					{
+						SelectItem( "weapon_crossbow" );  // select the crossbow
+						stop_hold_attack_button_time = 0;
+						IsHoldingAttackButton = false;
+					}
+
+					pev->v_angle = UTIL_VecToAngles( vecToss );
+
+					if( pev->v_angle.x > 180 )
+						pev->v_angle.x -= 360;
+
+					if( pev->v_angle.y > 180 )
+						pev->v_angle.y -= 360;
+
+					pev->angles.x = -pev->v_angle.x / 3;
+					pev->angles.y = pev->v_angle.y;
+					pev->angles.z = 0;
+
+					pev->idealpitch = pev->v_angle.x;
+					BotFixIdealPitch();
+
+					pev->button |= IN_ATTACK;  // use primary attack (bang! bang!)
+
+					// set next time to shoot
+					f_shoot_time = gpGlobals->time + 0.75 + RANDOM_FLOAT( primary_fire_delay[WEAPON_CROSSBOW][bot_skill][0], primary_fire_delay[WEAPON_CROSSBOW][bot_skill][1] );
+
+					return TRUE;
+				}
+			}
+		}
+	}
+	//===================== WEAPON_SNIPER =======================================================================
+	if( HasWeapon( WEAPON_SNIPER ) )
+	{
+		// if bot is not too close for crossbow and not too far...
+		if( ((IsCamping || ((distance > 300) && (distance < 3000))) && (weapon_choice == 0)) || (weapon_choice == WEAPON_SNIPER) )
+		{
+			new_weapon = weapon_ptr[WEAPON_SNIPER];
+
+			// check if the bot has any ammo left for this weapon...
+			if( primary_ammo[WEAPON_SNIPER] > 0 )
+			{
+				// check if the bot isn't already using this item...
+				if( m_pActiveItem != new_weapon )
+				{
+					SelectItem( "weapon_sniper" );  // select the crossbow
+					stop_hold_attack_button_time = 0;
+					IsHoldingAttackButton = false;
+				}
+
+				pev->button |= IN_ATTACK;  // use primary attack (bang! bang!)
+
+				// set next time to shoot
+				f_shoot_time = gpGlobals->time + 0.75 + RANDOM_FLOAT( primary_fire_delay[WEAPON_SNIPER][bot_skill][0], primary_fire_delay[WEAPON_SNIPER][bot_skill][1] );
+
+				return TRUE;
+			}
+		}
+	}
+
+	//===================== WEAPON_G36C =======================================================================
+	if( (HasWeapon( WEAPON_G36C )) && (pev->waterlevel != 3) )
+	{
+		if( ((IsCamping || (distance < 1300)) && (weapon_choice == 0)) || (weapon_choice == WEAPON_G36C) )
+		{
+			new_weapon = weapon_ptr[WEAPON_G36C];
+
+			// check if the bot has any ammo left for this weapon...
+			if( primary_ammo[WEAPON_G36C] > 0 )
+			{
+				// check if the bot isn't already using this item...
+				if( m_pActiveItem != new_weapon )
+				{
+					SelectItem( "weapon_g36c" );
+					stop_hold_attack_button_time = 0;
+					IsHoldingAttackButton = false;
+				}
+
+				pev->button |= IN_ATTACK;  // use primary attack (bang! bang!)
+
+				if( !IsHoldingAttackButton && stop_hold_attack_button_time == 0 )
+				{
+					IsHoldingAttackButton = true;
+					stop_hold_attack_button_time = gpGlobals->time + RANDOM_FLOAT( 0.3, 0.7 );
+				}
+
+				if( IsHoldingAttackButton )
+				{
+					if( stop_hold_attack_button_time < gpGlobals->time )
+					{
+						stop_hold_attack_button_time = 0;
+						f_shoot_time = gpGlobals->time + RANDOM_FLOAT( primary_fire_delay[WEAPON_G36C][bot_skill][0], primary_fire_delay[WEAPON_G36C][bot_skill][1] );
+						IsHoldingAttackButton = false;
+					}
+					else
+						f_shoot_time = gpGlobals->time;
+				}
+
+				// set next time to shoot
+				//   f_shoot_time = gpGlobals->time + RANDOM_FLOAT( primary_fire_delay[WEAPON_G36C][bot_skill][0], primary_fire_delay[WEAPON_G36C][bot_skill][1] );
+				//f_shoot_time = gpGlobals->time;
+
+				return TRUE;
+			}
+		}
+	}
+
+	//===================== WEAPON_RPG =======================================================================
+	// if the bot is carrying the RPG...
+	if (HasWeapon(WEAPON_RPG))
+	{
+		// don't use the RPG unless the enemy is pretty far away...
+		if (((distance > 300) && (weapon_choice == 0)) || (weapon_choice == WEAPON_RPG))
+		{
+			new_weapon = weapon_ptr[WEAPON_RPG];
+
+			// check if the bot has any ammo left for this weapon...
+			if (primary_ammo[WEAPON_RPG] > 0)
+			{
+				// check if the bot isn't already using this item...
+				if( m_pActiveItem != new_weapon )
+				{
+					SelectItem( "weapon_rpg" );  // select the RPG rocket launcher
+					stop_hold_attack_button_time = 0;
+					IsHoldingAttackButton = false;
+				}
+
+				pev->button |= IN_ATTACK;  // use primary attack (bang! bang!)
+
+				// set next time to shoot
+				f_shoot_time = gpGlobals->time + 1.5 + RANDOM_FLOAT(primary_fire_delay[WEAPON_RPG][bot_skill][0], primary_fire_delay[WEAPON_RPG][bot_skill][1]);
+
+				return TRUE;
+			}
+		}
+	}
+
+	// if we got here, we can't camp - no suitable weapons
+	if( IsCamping )
+	{
+		IsCamping = false;
+		camping_end_time = 0;
+		f_duck_release_time = 0;
+	}
+
+	//===================== WEAPON_BERETTA =======================================================================
+	// if the bot is carrying the 9mm glock...
+	if (HasWeapon(WEAPON_BERETTA))
+	{
+		// if nothing else was selected, try the good ol' 9mm glock...
+		if (((distance < 1200) && (weapon_choice == 0)) || (weapon_choice == WEAPON_BERETTA))
+		{
+			new_weapon = weapon_ptr[WEAPON_BERETTA];
+
+			// check if the bot has any ammo left for this weapon...
+			if (primary_ammo[WEAPON_BERETTA] > 0)
+			{
+				// check if the bot isn't already using this item...
+				if( m_pActiveItem != new_weapon )
+				{
+					SelectItem( "weapon_9mmhandgun" );  // select the trusty 9mm glock
+					stop_hold_attack_button_time = 0;
+					IsHoldingAttackButton = false;
+				}
+
+				//	int use_secondary = RANDOM_LONG(1,100);
+				bool use_secondary = (distance < 300);
+
+				// use secondary attack about 30% of the time
+				if (use_secondary)
+				{
+					pev->button |= IN_ATTACK2;  // use secondary attack (bang! bang!)
+
+					// set next time to shoot
+					//   f_shoot_time = gpGlobals->time + 0.2 + RANDOM_FLOAT(secondary_fire_delay[WEAPON_BERETTA][bot_skill][0], secondary_fire_delay[WEAPON_BERETTA][bot_skill][1]);
+					f_shoot_time = gpGlobals->time;
+				}
+				else
+				{
+					pev->button |= IN_ATTACK;  // use primary attack (bang! bang!)
+
+					// set next time to shoot
+					f_shoot_time = gpGlobals->time + 0.3 + RANDOM_FLOAT(primary_fire_delay[WEAPON_BERETTA][bot_skill][0], primary_fire_delay[WEAPON_BERETTA][bot_skill][1]);
+				}
+
+				return TRUE;
+			}
+		}
+	}
+
+	// didn't have any available weapons or ammo, return FALSE
+	return FALSE;
+}
+
+
+void CBot::BotShootAtEnemy( void )
+{	
+	float f_distance;
+
+	// aim for the head and/or body
+	Vector v_enemy = BotBodyTarget( pBotEnemy ) - GetGunPosition();
+
+	// the angles that would point exactly at the target
+	Vector v_want = UTIL_VecToAngles( v_enemy );
+	v_want.x = BotNormalizeAngle( v_want.x );
+	v_want.y = BotNormalizeAngle( v_want.y );
+
+	// how far the bot still has to turn
+	float f_cur_pitch = BotNormalizeAngle( pev->v_angle.x );
+	float f_cur_yaw = BotNormalizeAngle( pev->v_angle.y );
+	float f_delta_pitch = BotNormalizeAngle( v_want.x - f_cur_pitch );
+	float f_delta_yaw = BotNormalizeAngle( v_want.y - f_cur_yaw );
+
+	// turn towards the target: fast when far off, easing out when close,
+	// never faster than the skill-based maximum
+	int skill = bot_skill;
+	if( skill < 0 ) skill = 0;
+	if( skill > 4 ) skill = 4;
+
+	float f_frametime = BotClampFloat( gpGlobals->frametime, 0.001f, 0.1f );
+	float f_max_step = bot_aim_speed[skill] * f_frametime;
+	float f_ease = BotClampFloat( BOT_AIM_EASE * f_frametime, 0.0f, 1.0f );
+
+	pev->v_angle.x = f_cur_pitch + BotClampFloat( f_delta_pitch * f_ease, -f_max_step, f_max_step );
+	pev->v_angle.y = BotNormalizeAngle( f_cur_yaw + BotClampFloat( f_delta_yaw * f_ease, -f_max_step, f_max_step ) );
+	pev->v_angle.z = 0;
+
+	pev->angles.x = -pev->v_angle.x / 3;
+	pev->angles.y = pev->v_angle.y;
+	pev->angles.z = 0;
+
+	pev->idealpitch = pev->v_angle.x;
+	BotFixIdealPitch();
+
+	// keep ideal_yaw equal to the current yaw, so BotChangeYaw() in BotThink
+	// doesn't turn the bot a second time
+	pev->ideal_yaw = pev->v_angle.y;
+	BotFixIdealYaw();
+
+	// is the aim close enough to the enemy to shoot?
+	// compare where the bot looks with where it should look using a dot product
+	Vector v_fwd_cur, v_fwd_want;
+	g_engfuncs.pfnAngleVectors( pev->v_angle, v_fwd_cur, NULL, NULL );
+	g_engfuncs.pfnAngleVectors( v_want, v_fwd_want, NULL, NULL );
+	float f_dot = DotProduct( v_fwd_cur, v_fwd_want );
+
+	// allowed error in degrees depends on distance: a player-sized target
+	// seen from far away is only a tiny angle wide
+	float f_aim_distance = v_enemy.Length();
+	if( f_aim_distance < 1.0f )
+		f_aim_distance = 1.0f;
+
+	float f_tolerance = atan2( BOT_AIM_RADIUS, f_aim_distance ) * (180.0f / 3.14159265f);
+	f_tolerance = BotClampFloat( f_tolerance, 1.0f, 10.0f );
+
+	// during an automatic-fire burst, allow a bit more drift so it doesn't stutter
+	if( IsHoldingAttackButton )
+		f_tolerance *= 1.5f;
+
+	bool b_aimed = f_dot >= cos( f_tolerance * (3.14159265f / 180.0f) );
+
+	// is it time to shoot yet?
+	if( b_aimed && (f_shoot_time <= gpGlobals->time) )
+	{
+		// select the best weapon to use at this distance and fire...
+		BotFireWeapon( pBotEnemy->GetAbsOrigin() );
+	}
+
+	v_enemy.z = 0;  // ignore z component (up & down)
+
+	f_distance = v_enemy.Length();  // how far away is the enemy scum?
+
+	if( !IsCamping )
+	{
+		if( f_distance > 300 )      // run if distance to enemy is far
+			f_move_speed = f_max_speed;
+		else if( f_distance > BOT_KNIFE_DISTANCE )  // walk if distance is closer
+			f_move_speed = f_max_speed / 2;
+		else                     // don't move if close enough
+			f_move_speed = 0;
+
+		if( f_distance > 800 )
+		{
+			if( f_duck_release_time > gpGlobals->time )
+			{
+				f_move_speed = 0;
+			}
+			else if( gpGlobals->time >= f_next_duck_decision_time )
+			{
+				// decide once every couple of seconds, not every frame
+				f_next_duck_decision_time = gpGlobals->time + RANDOM_FLOAT( 2.0f, 4.0f );
+
+				if( RANDOM_LONG( 0, 100 ) > 50 )
+					f_duck_release_time = gpGlobals->time + RANDOM_FLOAT( 2.0f, 5.0f );
+			}
+		}
+	}
+	else
+		f_move_speed = 0.0;
+
+	// don't run straight ahead while still turning towards the enemy
+	const float f_turn_left = fabs( f_delta_yaw );
+
+	if( f_turn_left >= 45.0f )
+		f_move_speed = 0.0f;
+	else if( f_turn_left >= 30.0f )
+		f_move_speed *= 0.25f;
+	else if( f_turn_left >= 20.0f )
+		f_move_speed *= 0.333f;
+}
+
+
+

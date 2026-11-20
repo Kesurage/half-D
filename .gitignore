@@ -1,0 +1,8 @@
+__pycache__/
+build/
+out/
+pkg/
+*.pyc
+engine/android/app/build/
+game/.waf*
+game/3rd-party/physx-rs/

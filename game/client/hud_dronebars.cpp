@@ -1,0 +1,133 @@
+#include "hud.h"
+#include "utils.h"
+#include "r_local.h"
+
+static float dronebar_lerp_x = 0;
+
+int CHudDroneBars::Init( void )
+{
+	m_iFlags |= HUD_ACTIVE;
+
+	gHUD.AddHudElem( this );
+	return 1;
+};
+
+int CHudDroneBars::VidInit( void )
+{
+	int barframe = gHUD.GetSpriteIndex( "drone_bars" );
+	int barhealth = gHUD.GetSpriteIndex( "drone_hp" );
+	int barammo = gHUD.GetSpriteIndex( "drone_ammo" );
+	m_hBarFrame = gHUD.GetSprite( barframe );
+	m_hBarHealth = gHUD.GetSprite( barhealth );
+	m_hBarAmmo = gHUD.GetSprite( barammo );
+	m_prc_barframe = &gHUD.GetSpriteRect( barframe );
+	m_prc_barhealth = &gHUD.GetSpriteRect( barhealth );
+	m_prc_barammo = &gHUD.GetSpriteRect( barammo );
+
+	int droneicon = gHUD.GetSpriteIndex( "drone_icon" );
+	m_hDroneIcon = gHUD.GetSprite( droneicon );
+	m_prc_droneicon = &gHUD.GetSpriteRect( droneicon );
+
+	dronebar_lerp_x = -250;
+
+	return 1;
+};
+
+int CHudDroneBars::Draw( float flTime )
+{
+	if( gHUD.m_iHideHUDDisplay & HIDEHUD_HEALTH )
+		return 1;
+
+	if( !gHUD.HasWeapon( WEAPON_DRONE ) )
+		return 1;
+
+	if( tr.time == tr.oldtime ) // paused
+		return 1;
+
+	if( CVAR_TO_BOOL( ui_is_active ) )
+		return 0;
+
+	const int default_x = (ScreenWidth / 32) - 30;
+	const int default_y = ScreenHeight - (450 * gHUD.fScale) - 128 - (40 * gHUD.fScale); // (alice hud position) - 128(spr height) - margin
+
+	if( !CanUseDrone )
+	{
+		if( dronebar_lerp_x < -250 )
+			return 1;
+		else
+			dronebar_lerp_x = lerp( dronebar_lerp_x, -250, 3.0f * g_fFrametime );
+	}
+	else
+	{
+		if( dronebar_lerp_x != default_x )
+			dronebar_lerp_x = lerp( dronebar_lerp_x, default_x + 10, 5.0f * g_fFrametime );
+	}
+
+	int r, g, b, x, y = 255;
+	int offset = 0;
+	wrect_t temp_rect;
+
+	// draw the bars' frame
+	UnpackRGB( r, g, b, 0x0046A9FF ); // 70,169,255 for Diffusion
+
+	x = dronebar_lerp_x;
+	y = default_y;
+
+	SPR_Set( m_hBarFrame, r, g, b );
+	SPR_DrawAdditive( 0, x, y, m_prc_barframe );
+
+	// draw the health bar
+	const int bar_height = 128; // ! hardcoded sprite height
+	// x and y are still same
+	r = 255;
+	g = 0;
+	b = 0;
+	SPR_Set( m_hBarHealth, r, g, b );
+	temp_rect = *m_prc_barhealth;
+	offset = bar_height * (1.0f - (DroneHealth / (float)DRONE_MAX_HEALTH ) );
+	if( offset >= 128 ) offset = 127;
+	temp_rect.top += offset;
+	SPR_DrawAdditive( 0, x, y + offset, &temp_rect );
+
+	// draw the ammo bar
+	// y is still same
+	r = 255;
+	g = 100;
+	b = 0;
+	x = dronebar_lerp_x + 24;
+	SPR_Set( m_hBarAmmo, r, g, b );
+	temp_rect = *m_prc_barammo;
+	offset = bar_height * (1.0f - (DroneAmmo / (float)DRONE_MAX_AMMO ) );
+	if( offset >= 128 ) offset = 127;
+	temp_rect.top += offset;
+	SPR_DrawAdditive( 0, x, y + offset, &temp_rect );
+
+	// write distance
+	x = dronebar_lerp_x;
+	y = default_y - 28 * gHUD.fScale;
+	if( !DroneDeployed )
+		DrawString( x, y, "OFF", 255, 25, 25 );
+	else
+	{
+		static char buf[64];
+		Q_snprintf( buf, sizeof( buf ), "%i m", DroneDistance );
+		DrawString( x, y, buf, 25, 255, 25 );
+	}
+
+	// draw the drone icon above the bars and text
+	// x yet the same
+	y -= 50;
+	if( !DroneDeployed )
+		SPR_Set( m_hDroneIcon, 100, 100, 100 );
+	else
+		SPR_Set( m_hDroneIcon, 25, 255, 25 );
+
+	int frame = 0;
+
+	if( tr.pDrone && tr.pDrone->curstate.effects & EF_DIMLIGHT )
+		frame = 1;
+
+	SPR_DrawAdditive( frame, x, y, m_prc_droneicon );
+
+	return 1;
+}
