@@ -248,7 +248,87 @@ static bool GL_LoadSource( const char *filename, CVirtualFS *file )
 	return true;
 }
 
-static void GL_ParseFile( const char *filename, CVirtualFS *file, CVirtualFS *out )
+// half-D: native GLES3 path — rewrite the desktop GLSL 130 sources to
+// GLSL ES 300 on the fly. GLSL 130 and 300 es are close cousins: only the
+// legacy keywords, texture builtins, fragment output and fixed-function
+// matrix inputs differ. Everything below is textual; the compiler does the
+// rest. See logs/dev-log.md v0.5.0 for the full mapping table.
+static bool HD_ReplaceToken( char *line, size_t linesize, const char *from, const char *to )
+{
+	size_t fromLen = Q_strlen( from );
+	size_t toLen = Q_strlen( to );
+	size_t search = 0;
+
+	while( search < linesize )
+	{
+		char *p = (char *)Q_strstr( line + search, from );
+
+		if( p == NULL )
+			break;
+
+		// token boundary: the chars before and after must not be [A-Za-z0-9_]
+		char prev = ( p == line ) ? '\0' : p[-1];
+		char next = p[fromLen];
+
+		if(( prev == '\0' || !( isalpha( prev ) || isdigit( prev ) || prev == '_' )) &&
+		   ( next == '\0' || !( isalpha( next ) || isdigit( next ) || next == '_' )))
+		{
+			if( toLen > fromLen && Q_strlen( line ) + toLen - fromLen >= linesize )
+				return false; // would overflow the line buffer
+
+			memmove( p + toLen, p + fromLen, Q_strlen( p + fromLen ) + 1 );
+			memcpy( p, to, toLen );
+			search = ( p - line ) + toLen;
+		}
+		else
+		{
+			// not a standalone token: continue searching after this one
+			search = ( p - line ) + fromLen;
+		}
+	}
+
+	return true;
+}
+
+static void HD_TransformLineES( char *line, size_t linesize, GLenum shaderType )
+{
+	bool isVertex = ( shaderType == GL_VERTEX_SHADER_ARB );
+
+	// GLSL ES 300 reserved the word "sample"; texfetch.h uses it as a local
+	HD_ReplaceToken( line, linesize, "sample", "hd_sample" );
+
+	// legacy interpolation keyword -> in/out depending on stage
+	HD_ReplaceToken( line, linesize, "varying", isVertex ? "out" : "in" );
+
+	if( isVertex )
+	{
+		// legacy attribute keyword (vertex only)
+		HD_ReplaceToken( line, linesize, "attribute", "in" );
+
+		// fixed-function matrices -> uniforms uploaded by GL_BindShader
+		HD_ReplaceToken( line, linesize, "gl_ModelViewProjectionMatrix", "u_hdMVP" );
+		HD_ReplaceToken( line, linesize, "gl_ModelViewMatrix", "u_hdMV" );
+		HD_ReplaceToken( line, linesize, "gl_TextureMatrix[0]", "u_hdTexMat0" );
+
+		// fixed-function vertex inputs -> shim-fed attributes. The engine
+		// gl2_shim uploads client-side arrays at its own fixed locations
+		// (position 0, color 1, texcoord0 2) which don't match this
+		// renderer's attr_* convention, so declare explicit locations.
+		HD_ReplaceToken( line, linesize, "gl_MultiTexCoord0", "hd_MultiTexCoord0" );
+		HD_ReplaceToken( line, linesize, "gl_Vertex", "hd_Position" );
+		HD_ReplaceToken( line, linesize, "gl_Normal", "hd_Normal" );
+		HD_ReplaceToken( line, linesize, "gl_Color", "hd_glColor" );
+		HD_ReplaceToken( line, linesize, "gl_TexCoord[0]", "hd_TexCoord0" );
+		// clip planes are stubbed on this path; eat the assignment
+		HD_ReplaceToken( line, linesize, "gl_ClipVertex", "hd_ClipVertexUnused" );
+	}
+	else
+	{
+		HD_ReplaceToken( line, linesize, "gl_TexCoord[0]", "hd_TexCoord0" );
+	}
+}
+
+static void GL_ParseFile( const char *filename, CVirtualFS *file, CVirtualFS *out, GLenum shaderType )
 {
 	char	*pfile, token[256];
 	int	ret, fileline = 1;
@@ -276,18 +356,24 @@ static void GL_ParseFile( const char *filename, CVirtualFS *file, CVirtualFS *ou
 				fileline++;
 				continue;
                               }
-			GL_ParseFile( incname, &incfile, out );
+			GL_ParseFile( incname, &incfile, out, shaderType );
 //			out->Printf( "#file %s\n", filename );	// OpenGL doesn't support #file :-(
 			out->Printf( "#line %i\n", fileline );
 		}
-		else out->Printf( "%s\n", line );
+		else
+		{
+			// half-D: rewrite legacy GLSL to ES 300 on native GLES contexts
+			if( glConfig.es_context )
+				HD_TransformLineES( line, sizeof( line ), shaderType );
+			out->Printf( "%s\n", line );
+		}
 		fileline++;
 	} while( ret != EOF );
 
 	GL_PopFileStack();
 }
 
-static bool GL_ProcessShader( const char *filename, CVirtualFS *out, bool compatible, const char *defines = NULL )
+static bool GL_ProcessShader( const char *filename, CVirtualFS *out, bool compatible, GLenum shaderType, const char *defines = NULL )
 {
 	CVirtualFS file;
 
@@ -297,17 +383,66 @@ static bool GL_ProcessShader( const char *filename, CVirtualFS *out, bool compat
 		return false;
 
 	// add internal defines
-	out->Printf( "#version 130\n" );
+	// half-D: native GLES contexts take GLSL ES 300 — the source is still
+	// authored as desktop GLSL 130 and rewritten line-by-line in GL_ParseFile
+	if( glConfig.es_context )
+		out->Printf( "#version 300 es\n" );
+	else
+		out->Printf( "#version 130\n" );
 	out->Printf( "#ifdef GL_ES\n" );
 	out->Printf( "precision highp float;\n" );
 	out->Printf( "precision highp int;\n" );
 	out->Printf( "precision highp sampler2D;\n" );
 	out->Printf( "precision highp samplerCube;\n" );
 	out->Printf( "precision highp sampler2DShadow;\n" );
+	out->Printf( "precision highp samplerCubeShadow;\n" );
 	out->Printf( "#endif\n" );
 	out->Printf( "#ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif\n" );
 	out->Printf( "#ifndef M_PI2\n#define M_PI2 6.28318530717958647692\n#endif\n" );
 	out->Printf( "#ifndef round\n#define round( x ) floor( (x) + 0.5 )\n#endif\n" );
+	if( glConfig.es_context )
+	{
+		// half-D: GLSL ES 300 compatibility shims. GLSL 130 kept the
+		// GLSL 1.10 texture builtins and gl_FragColor; 300 es dropped them.
+		out->Printf( "#define texture2D texture\n" );
+		out->Printf( "#define texture2DLod textureLod\n" );
+		out->Printf( "#define texture2DProj textureProj\n" );
+		out->Printf( "#define textureCube texture\n" );
+		out->Printf( "#define textureCubeLod textureLod\n" );
+
+		if( shaderType == GL_FRAGMENT_SHADER_ARB )
+		{
+			// 300 es removed gl_FragColor; every fragment shader in this
+			// renderer writes the single output through it
+			out->Printf( "layout(location = 0) out vec4 hd_FragColor;\n" );
+			out->Printf( "#define gl_FragColor hd_FragColor\n" );
+		}
+		else
+		{
+			// fixed-function vertex inputs rewritten in GL_ParseFile: the
+			// engine gl2_shim feeds client-side arrays at its fixed
+			// locations (position 0, color 1, texcoord0 2)
+			out->Printf( "layout(location = 0) in vec4 hd_Position;\n" );
+			out->Printf( "layout(location = 1) in vec4 hd_glColor;\n" );
+			out->Printf( "layout(location = 2) in vec4 hd_MultiTexCoord0;\n" );
+			out->Printf( "layout(location = 3) in vec3 hd_Normal;\n" );
+			// fixed-function matrices -> uniforms (uploaded by GL_BindShader)
+			out->Printf( "uniform mat4 u_hdMVP;\n" );
+			out->Printf( "uniform mat4 u_hdMV;\n" );
+			out->Printf( "uniform mat4 u_hdTexMat0;\n" );
+			// gl_TexCoord[0] varying rewritten in GL_ParseFile
+			out->Printf( "out vec4 hd_TexCoord0;\n" );
+			// gl_ClipVertex assignments land here; clip planes are stubbed
+			out->Printf( "vec4 hd_ClipVertexUnused;\n" );
+		}
+
+		if( shaderType == GL_FRAGMENT_SHADER_ARB )
+		{
+			out->Printf( "in vec4 hd_TexCoord0;\n" );
+			out->Printf( "uniform mat4 u_hdMVP;\n" );
+			out->Printf( "uniform mat4 u_hdMV;\n" );
+		}
+	}
 	if( GL_Support( R_EXT_GPU_SHADER4 ))
 	{
 		out->Printf( "#extension GL_EXT_gpu_shader4 : require\n" ); // support bitwise ops
@@ -328,7 +463,7 @@ static bool GL_ProcessShader( const char *filename, CVirtualFS *out, bool compat
 	out->Printf( "#ifndef MAXLIGHTMAPS\n#define MAXLIGHTMAPS %i\n#endif\n", MAXLIGHTMAPS );
 	out->Printf( "#ifndef GRASS_ANIM_DIST\n#define GRASS_ANIM_DIST %f\n#endif\n", GRASS_ANIM_DIST );
 
-	GL_ParseFile( filename, &file, out );
+	GL_ParseFile( filename, &file, out, shaderType );
 	out->Write( "", 1 ); // terminator
 
 	return true;
@@ -359,7 +494,7 @@ static void GL_LoadGPUShader( glsl_program_t *shader, const char *name, GLenum s
 		filename[i] = tolower( filename[i] );
 
 	// load includes, add some directives
-	if( !GL_ProcessShader( filename, &source, compatible, defines ) )
+	if( !GL_ProcessShader( filename, &source, compatible, shaderType, defines ) )
 		return;
 
 	GLcharARB *buffer = (GLcharARB *)source.GetBuffer();
@@ -582,6 +717,33 @@ void GL_BindShader( glsl_program_t *shader )
 		pglUseProgram( shader->handle );
 		r_stats.num_shader_binds++;
 		RI->currentshader = shader;
+
+		// half-D: native GLES3 path — the shaders were rewritten from
+		// gl_ModelViewProjectionMatrix/gl_ModelViewMatrix to uniforms; feed
+		// them the shim's tracked matrices every bind (~2 glUniform calls,
+		// negligible next to the draw itself)
+		if( glConfig.es_context && pglHalfDGetMatrix )
+		{
+			float mat[16];
+
+			if( shader->u_hdMVP >= 0 )
+			{
+				pglHalfDGetMatrix( 0 /* combined MVP */, mat );
+				pglUniformMatrix4fvARB( shader->u_hdMVP, 1, GL_FALSE, mat );
+			}
+
+			if( shader->u_hdMV >= 0 )
+			{
+				pglHalfDGetMatrix( GL_MODELVIEW_MATRIX, mat );
+				pglUniformMatrix4fvARB( shader->u_hdMV, 1, GL_FALSE, mat );
+			}
+
+			if( shader->u_hdTexMat0 >= 0 )
+			{
+				pglHalfDGetMatrix( GL_TEXTURE_MATRIX, mat );
+				pglUniformMatrix4fvARB( shader->u_hdTexMat0, 1, GL_FALSE, mat );
+			}
+		}
 	}
 }
 
@@ -759,6 +921,18 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 		shader->nextHash = glsl_programsHashTable[hash];
 		glsl_programsHashTable[hash] = shader;
 		return NULL;
+	}
+
+	// half-D: cache the injected fixed-function matrix uniform locations
+	// (native GLES3 path — GL_BindShader uploads them on every bind)
+	shader->u_hdMVP = -1;
+	shader->u_hdMV = -1;
+	shader->u_hdTexMat0 = -1;
+	if( glConfig.es_context && shader->handle )
+	{
+		shader->u_hdMVP = pglGetUniformLocationARB( shader->handle, "u_hdMVP" );
+		shader->u_hdMV = pglGetUniformLocationARB( shader->handle, "u_hdMV" );
+		shader->u_hdTexMat0 = pglGetUniformLocationARB( shader->handle, "u_hdTexMat0" );
 	}
 
 	// Cache binary if supported
@@ -2989,9 +3163,14 @@ bool GL_PrecompileUberShaders( int &processed, int &total )
 
 	if( !GL_Support( R_BINARY_SHADER_EXT ) )
 	{
-		Msg( "^1Couldn't precompile shaders - unsupported by current hardware or drivers.^7\n" );
-		bPrecompiled = true;
-		return true;
+		// half-D v0.5.0: keep precompiling from source even without the
+		// binary cache. v0.4.4 disabled the binary cache on gl4es (the
+		// crash fix), which also disabled this precompile pass — every
+		// permutation then compiled lazily mid-frame: 13-76 s stalls in the
+		// field logs. GL_InitGPUShader below compiles from source when no
+		// disk cache is available, and the per-frame budget spreads the
+		// cost behind the loading screen instead of inside gameplay.
+		Msg( "^3Precompiling shaders from source (no binary cache on this driver)^7\n" );
 	}
 
 	processed = shaders_processed_total;

@@ -419,6 +419,16 @@ typedef char GLchar;
 #define GL_OBJECT_ACTIVE_UNIFORMS_ARB		0x8B86
 #define GL_OBJECT_ACTIVE_UNIFORM_MAX_LENGTH_ARB	0x8B87
 #define GL_OBJECT_SHADER_SOURCE_LENGTH_ARB	0x8B88
+// half-D: core GL2 status enums — desktop GL assigned them the same values
+// as the ARB object-model enums above, and GLES3 uses those values too
+#define GL_COMPILE_STATUS			GL_OBJECT_COMPILE_STATUS_ARB
+#define GL_LINK_STATUS				GL_OBJECT_LINK_STATUS_ARB
+#define GL_VALIDATE_STATUS			GL_OBJECT_VALIDATE_STATUS_ARB
+#define GL_INFO_LOG_LENGTH			GL_OBJECT_INFO_LOG_LENGTH_ARB
+#define GL_ATTACHED_SHADERS			GL_OBJECT_ATTACHED_OBJECTS_ARB
+#define GL_ACTIVE_UNIFORMS			GL_OBJECT_ACTIVE_UNIFORMS_ARB
+#define GL_DELETE_STATUS			GL_OBJECT_DELETE_STATUS_ARB
+#define GL_SHADER_SOURCE_LENGTH			GL_OBJECT_SHADER_SOURCE_LENGTH_ARB
 #define GL_PROGRAM_BINARY_LENGTH 0x8741
 #define GL_PROGRAM_BINARY_RETRIEVABLE_HINT	0x8257
 #define GL_SHADER_OBJECT_ARB			0x8B48
@@ -794,6 +804,11 @@ typedef char GLchar;
 // helper opengl functions
 EXTERN GLenum ( APIENTRY *pglGetError )(void);
 EXTERN const GLcharARB * ( APIENTRY *pglGetString )(GLenum name);
+
+// half-D: engine gl2_shim tracked-matrix query (native GLES3 path). Resolved
+// from the renderer through R_GetProcAddress("halfD_GL2GetMatrix"); NULL on
+// gl4es (fixed-function matrices are handled inside the wrapper there).
+EXTERN void (*pglHalfDGetMatrix)( GLenum mode, GLfloat *out );
 
 // base gl functions
 EXTERN void ( APIENTRY *pglAccum )(GLenum op, GLfloat value);

@@ -803,15 +803,20 @@ qboolean R_Init( void )
 		success = R_LoadRenderer( requested_cmdline, false );
 
 #if XASH_ANDROID
-	// half-D: Diffusion's client-side renderer only runs on a desktop GL
-	// compatibility context (CONTEXT_TYPE_GL), and on Android only ref_gl4es
-	// provides one. Try gl4es before the saved r_refdll so a video.cfg left
-	// over from the old GLES1 default cannot win (the launcher also passes
-	// -ref gl4es, but this covers every launch path: shortcuts, saved
-	// arguments, external intents). -ref on the command line still overrides;
-	// if gl4es fails to load, the normal cvar/autodetect flow continues below.
+	// half-D v0.5.0: prefer the NATIVE GLES 3.0 renderer (ref_gles3compat)
+	// on Android — Diffusion's client renderer compiles its shaders as
+	// GLSL ES 300 and the gl2_shim answers the fixed-function surface, so
+	// nothing goes through gl4es's per-call translation layer (the 80-160 ms
+	// scene times in the 02:49 field log). gl4es stays the fallback: if the
+	// gles3compat library fails to load or init, the flow below continues
+	// and reaches it. -ref on the command line still overrides everything
+	// (the launcher may pass -ref gl4es; keep honoring it).
 	if( !success )
-		success = R_LoadRenderer( "gl4es", false );
+	{
+		success = R_LoadRenderer( "gles3compat", false );
+		if( !success )
+			success = R_LoadRenderer( "gl4es", false );
+	}
 #endif
 
 	if( !success && !COM_StringEmptyOrNULL( r_refdll.string ) && Q_stricmp( requested_cmdline, r_refdll.string ))

@@ -23,3 +23,6 @@ void GL2_ShimInstall( void );
 void GL2_ShimShutdown( void );
 void GL2_ShimEndFrame( void );
 void *GL2_ShimGetProcAddress( const char *name );
+// half-D: tracked matrix state for clients that inject fixed-function
+// matrices as uniforms into their own GLSL programs (GLES3 path)
+void GL2_GetMatrix( GLenum mode, GLfloat *out );

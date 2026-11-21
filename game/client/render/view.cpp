@@ -483,7 +483,9 @@ void V_VidInit( void )
 	// path (gl4es/ES on phones) pays heavily for per-frame postfx and shadow
 	// passes — default to a tuned preset there so the game is playable. Set
 	// gl_mobile_quality 0 to keep full effects.
-	if( glConfig.version < 3.0f && CVAR_TO_BOOL( gl_mobile_quality ))
+	// v0.5.0: also applies to the native GLES3 path (es_context) — it parses
+	// as version 3.2, which the old < 3.0 check alone would let through.
+	if(( glConfig.version < 3.0f || glConfig.es_context ) && CVAR_TO_BOOL( gl_mobile_quality ))
 	{
 		gl_shadows->value = 0.0f;             // dlight shadow passes
 		r_menu_blur->value = 0.0f;            // paused-menu GaussBlur readbacks

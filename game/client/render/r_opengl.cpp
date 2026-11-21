@@ -25,6 +25,7 @@ GNU General Public License for more details.
 
 glState_t glState;
 glConfig_t glConfig;
+void (*pglHalfDGetMatrix)( GLenum mode, GLfloat *out ) = NULL; // half-D
 
 static void APIENTRY Stub_DrawBuffer( GLenum mode )
 {
@@ -49,6 +50,180 @@ static void APIENTRY Stub_AlphaFunc( GLenum func, GLclampf ref )
 
 static void APIENTRY Stub_ClipPlane( GLenum plane, const GLdouble *equation )
 {
+}
+
+// half-D: native GLES3 path (ref_gles3compat). The renderer was written
+// against desktop GL2 / gl4es, which fakes the whole fixed-function API.
+// On a real GLES3 context the opengl_110 table must still resolve, so the
+// functions below satisfy the table for everything the renderer never
+// actually calls (verified call-site-by-call-site with
+// tools/audit_es_surface.py). Functions that ARE called got real
+// implementations: matrix state lives in the engine gl2_shim (exported
+// through R_GetProcAddress), and the ARB shader-object API maps to core
+// GL2 entry points.
+static void APIENTRY Stub_NoOp( void ) {}
+static void APIENTRY Stub_NoOp1( GLenum a ) {}
+static void APIENTRY Stub_NoOp2( GLenum a, GLenum b ) {}
+static void APIENTRY Stub_NoOp3( GLenum a, GLenum b, GLenum c ) {}
+static void APIENTRY Stub_NoOp4( GLenum a, GLenum b, GLenum c, GLenum d ) {}
+static void APIENTRY Stub_TexGenf( GLenum coord, GLenum pname, GLfloat param ) {}
+static void APIENTRY Stub_TexGenfv( GLenum coord, GLenum pname, const GLfloat *params ) {}
+static void APIENTRY Stub_TexGeni( GLenum coord, GLenum pname, GLint param ) {}
+static void APIENTRY Stub_PolygonMode( GLenum face, GLenum mode )
+{
+	// GLES has no polygon mode; everything renders filled. The renderer
+	// only ever sets GL_FILL outside debug wireframe.
+}
+static void APIENTRY Stub_PointSize( GLfloat size ) {}
+static void APIENTRY Stub_RasterPos2f( GLfloat x, GLfloat y ) {}
+static void APIENTRY Stub_GetTexEnviv( GLenum target, GLenum pname, GLint *params )
+{
+	if( params ) *params = 0;
+}
+static void APIENTRY Stub_GetTexLevelParameteriv( GLenum target, GLint level, GLenum pname, GLint *params )
+{
+	if( params ) *params = 0;
+}
+static void APIENTRY Stub_GetTexLevelParameterfv( GLenum target, GLint level, GLenum pname, GLfloat *params )
+{
+	if( params ) *params = 0.0f;
+}
+static void APIENTRY Stub_GetClipPlane( GLenum plane, GLdouble *equation )
+{
+	int i;
+	for( i = 0; i < 4; i++ ) equation[i] = 0.0;
+}
+static GLboolean APIENTRY Stub_IsList( GLuint list ) { return GL_FALSE; }
+static void *APIENTRY Stub_MapBufferARB( GLenum target, GLenum access ) { return NULL; }
+static GLboolean APIENTRY Stub_UnmapBufferARB( GLenum target ) { return GL_TRUE; }
+static void APIENTRY Stub_NormalPointer( GLenum type, GLsizei stride, const GLvoid *ptr ) {}
+static void APIENTRY Stub_VertexAttrib4ubv( GLuint index, const GLubyte *v )
+{
+	if( pglVertexAttrib4fARB && v )
+		pglVertexAttrib4fARB( index, v[0] / 255.0f, v[1] / 255.0f, v[2] / 255.0f, v[3] / 255.0f );
+}
+static GLhandleARB APIENTRY Stub_GetHandleARB( GLenum pname ) { return 0; }
+static void APIENTRY Stub_GetAttachedObjectsARB( GLhandleARB containerObj, GLsizei maxCount, GLsizei *count, GLhandleARB *obj ) 
+{
+	if( count ) *count = 0;
+}
+static void APIENTRY Stub_GetObjectParameterfvARB( GLhandleARB obj, GLenum pname, GLfloat *params )
+{
+	if( params ) *params = 0.0f;
+}
+
+// half-D: ARB shader-object API mapped onto core GL2 entry points
+static GLhandleARB APIENTRY Stub_glCreateShaderObjectARB( GLenum shaderType )
+{
+	return pglCreateShader ? pglCreateShader( shaderType ) : 0;
+}
+
+static GLhandleARB APIENTRY Stub_glCreateProgramObjectARB( void )
+{
+	return pglCreateProgram ? pglCreateProgram() : 0;
+}
+
+static void APIENTRY Stub_glAttachObjectARB( GLhandleARB containerObj, GLhandleARB obj )
+{
+	if( pglAttachShader ) pglAttachShader( containerObj, obj );
+}
+
+static void APIENTRY Stub_glDeleteObjectARB( GLhandleARB obj )
+{
+	if( !pglIsProgram || !obj )
+		return;
+
+	// the ARB object model unifies shaders and programs; core GL split them
+	if( pglIsProgram( obj ))
+	{
+		if( pglDeleteProgram ) pglDeleteProgram( obj );
+	}
+	else
+	{
+		if( pglDeleteShader ) pglDeleteShader( obj );
+	}
+}
+
+static void APIENTRY Stub_glUseProgramObjectARB( GLhandleARB progObj )
+{
+	if( pglUseProgram ) pglUseProgram( progObj );
+}
+
+static void APIENTRY Stub_glGetInfoLogARB( GLhandleARB obj, GLsizei maxLength, GLsizei *length, GLcharARB *infoLog )
+{
+	if( pglIsProgram && pglIsProgram( obj ))
+	{
+		if( pglGetProgramInfoLog ) pglGetProgramInfoLog( obj, maxLength, length, infoLog );
+	}
+	else
+	{
+		if( pglGetShaderInfoLog ) pglGetShaderInfoLog( obj, maxLength, length, infoLog );
+	}
+}
+
+static void APIENTRY Stub_glGetObjectParameterivARB( GLhandleARB obj, GLenum pname, GLint *params )
+{
+	GLboolean isProgram;
+
+	if( !params )
+		return;
+
+	if( !pglIsProgram || !pglGetProgramiv || !pglGetShaderiv )
+	{
+		*params = 0;
+		return;
+	}
+
+	isProgram = pglIsProgram( obj );
+
+	switch( pname )
+	{
+	case GL_OBJECT_COMPILE_STATUS_ARB:
+		// compile status only exists on shader objects
+		pglGetShaderiv( obj, GL_COMPILE_STATUS, params );
+		break;
+	case GL_OBJECT_LINK_STATUS_ARB:
+	case GL_OBJECT_VALIDATE_STATUS_ARB:
+		pglGetProgramiv( obj, isProgram ? GL_LINK_STATUS : GL_COMPILE_STATUS, params );
+		if( pname == GL_OBJECT_VALIDATE_STATUS_ARB && isProgram )
+			pglGetProgramiv( obj, GL_VALIDATE_STATUS, params );
+		break;
+	case GL_OBJECT_INFO_LOG_LENGTH_ARB:
+		if( isProgram ) pglGetProgramiv( obj, GL_INFO_LOG_LENGTH, params );
+		else pglGetShaderiv( obj, GL_INFO_LOG_LENGTH, params );
+		break;
+	case GL_OBJECT_ATTACHED_OBJECTS_ARB:
+		pglGetProgramiv( obj, GL_ATTACHED_SHADERS, params );
+		break;
+	case GL_OBJECT_ACTIVE_UNIFORMS_ARB:
+		pglGetProgramiv( obj, GL_ACTIVE_UNIFORMS, params );
+		break;
+	case GL_OBJECT_SHADER_SOURCE_LENGTH_ARB:
+		pglGetShaderiv( obj, GL_SHADER_SOURCE_LENGTH, params );
+		break;
+	case GL_OBJECT_DELETE_STATUS_ARB:
+		if( isProgram ) pglGetProgramiv( obj, GL_DELETE_STATUS, params );
+		else pglGetShaderiv( obj, GL_DELETE_STATUS, params );
+		break;
+	default:
+		*params = 0;
+		break;
+	}
+}
+
+static void APIENTRY Stub_glShaderSourceARB( GLhandleARB shaderObj, GLsizei count, const GLcharARB **string, const GLint *length )
+{
+	if( pglShaderSource ) pglShaderSource( shaderObj, count, (const GLchar **)string, length );
+}
+
+static void APIENTRY Stub_glCompileShaderARB( GLhandleARB shaderObj )
+{
+	if( pglCompileShader ) pglCompileShader( shaderObj );
+}
+
+static void APIENTRY Stub_glLinkProgramARB( GLhandleARB programObj )
+{
+	if( pglLinkProgram ) pglLinkProgram( programObj );
 }
 
 static const dllfunc_t opengl_110funcs[] =
@@ -548,6 +723,92 @@ void GL_CheckExtension( const char *name, const dllfunc_t *funcs, const char *cv
 			else if( !Q_strcmp( func->name, "glClipPlane" ) )
 				p = (void *)Stub_ClipPlane;
 		}
+
+		// half-D: native GLES3 path. The engine gl2_shim answers the
+		// fixed-function entry points, core ES3 answers the modern ones,
+		// and whatever remains falls through to stubs below.
+		if( !p )
+		{
+			static const struct
+			{
+				const char *name;
+				void *ptr;
+			} esStubs[] =
+			{
+			{ "glTexImage1D", (void *)Stub_NoOp4 },
+			{ "glTexSubImage1D", (void *)Stub_NoOp3 },
+			{ "glCopyTexImage1D", (void *)Stub_NoOp4 },
+			{ "glCopyTexSubImage1D", (void *)Stub_NoOp3 },
+			{ "glDrawPixels", (void *)Stub_NoOp4 },
+			{ "glTexGenf", (void *)Stub_TexGenf },
+			{ "glTexGenfv", (void *)Stub_TexGenfv },
+			{ "glTexGeni", (void *)Stub_TexGeni },
+			{ "glPolygonMode", (void *)Stub_PolygonMode },
+			{ "glPolygonStipple", (void *)Stub_NoOp1 },
+			{ "glPointSize", (void *)Stub_PointSize },
+			{ "glRasterPos2f", (void *)Stub_RasterPos2f },
+			{ "glPushAttrib", (void *)Stub_NoOp1 },
+			{ "glPopAttrib", (void *)Stub_NoOp },
+			{ "glGetTexImage", (void *)Stub_NoOp4 },
+			{ "glGetTexEnviv", (void *)Stub_GetTexEnviv },
+			{ "glPixelStoref", (void *)Stub_NoOp3 },
+			{ "glGetTexLevelParameteriv", (void *)Stub_GetTexLevelParameteriv },
+			{ "glGetTexLevelParameterfv", (void *)Stub_GetTexLevelParameterfv },
+			{ "glGetClipPlane", (void *)Stub_GetClipPlane },
+			{ "glIsList", (void *)Stub_IsList },
+			{ "glMapBufferARB", (void *)Stub_MapBufferARB },
+			{ "glUnmapBufferARB", (void *)Stub_UnmapBufferARB },
+			{ "glNormalPointer", (void *)Stub_NormalPointer },
+			{ "glVertexAttrib4ubv", (void *)Stub_VertexAttrib4ubv },
+			{ "glFramebufferTexture1D", (void *)Stub_NoOp4 },
+			{ "glFramebufferTexture3D", (void *)Stub_NoOp3 },
+			{ "glGetHandleARB", (void *)Stub_GetHandleARB },
+			{ "glGetAttachedObjectsARB", (void *)Stub_GetAttachedObjectsARB },
+			{ "glGetObjectParameterfvARB", (void *)Stub_GetObjectParameterfvARB },
+			{ "glCreateShaderObjectARB", (void *)Stub_glCreateShaderObjectARB },
+			{ "glCreateProgramObjectARB", (void *)Stub_glCreateProgramObjectARB },
+			{ "glAttachObjectARB", (void *)Stub_glAttachObjectARB },
+			{ "glDeleteObjectARB", (void *)Stub_glDeleteObjectARB },
+			{ "glUseProgramObjectARB", (void *)Stub_glUseProgramObjectARB },
+			{ "glGetInfoLogARB", (void *)Stub_glGetInfoLogARB },
+			{ "glGetObjectParameterivARB", (void *)Stub_glGetObjectParameterivARB },
+			{ "glShaderSourceARB", (void *)Stub_glShaderSourceARB },
+			{ "glCompileShaderARB", (void *)Stub_glCompileShaderARB },
+			{ "glLinkProgramARB", (void *)Stub_glLinkProgramARB },
+			{ NULL, NULL }
+			};
+
+			for( int i = 0; esStubs[i].name; i++ )
+			{
+				if( !Q_strcmp( func->name, esStubs[i].name ))
+				{
+					p = esStubs[i].ptr;
+					break;
+				}
+			}
+		}
+
+		// half-D: ARB/EXT-suffixed names whose core form exists natively on
+		// GLES3 (glGenBuffersARB -> glGenBuffers, glBlendFuncSeparateEXT ->
+		// glBlendFuncSeparate, ...) or in the gl2_shim (glMultiTexCoord2fARB
+		// -> glMultiTexCoord2f)
+		if( !p )
+		{
+			size_t len = Q_strlen( func->name );
+			char corename[64];
+
+			if( len > 3 && len < sizeof( corename ) + 3 && !Q_strcmp( func->name + len - 3, "ARB" ))
+			{
+				Q_strncpy( corename, func->name, len - 2 );
+				p = (void *)GL_GetProcAddress( corename );
+			}
+
+			if( !p && len > 3 && len < sizeof( corename ) + 3 && !Q_strcmp( func->name + len - 3, "EXT" ))
+			{
+				Q_strncpy( corename, func->name, len - 2 );
+				p = (void *)GL_GetProcAddress( corename );
+			}
+		}
 		*func->func = p;
 		if( !p )
 			GL_SetExtension( r_ext, false ); // one or more functions are invalid, extension will be disabled
@@ -649,7 +910,29 @@ static void GL_InitExtensions( void )
 
 	glConfig.version = Q_atof( glConfig.version_string );
 
-	Msg( "GL_VERSION: %g\n", glConfig.version );
+	// half-D: native GLES contexts report "OpenGL ES 3.x ..." — Q_atof stops
+	// at the leading text and returns 0. Skip the prefix, and remember the
+	// context type: the shader loader emits GLSL ES 300 and injects the
+	// fixed-function matrices as uniforms on this path.
+	{
+		const char *es = Q_stristr( glConfig.version_string, "OpenGL ES" );
+
+		if( es != NULL )
+		{
+			glConfig.es_context = true;
+			glConfig.version = Q_atof( es + 10 ); // skip "OpenGL ES"
+		}
+	}
+
+	Msg( "GL_VERSION: %g%s\n", glConfig.version, glConfig.es_context ? " (GLES)" : "" );
+
+	// half-D: shim matrix query for uniform injection (native GLES3 only)
+	if( glConfig.es_context )
+	{
+		pglHalfDGetMatrix = (void (*)( GLenum, GLfloat * ))GL_GetProcAddress( "halfD_GL2GetMatrix" );
+		if( !pglHalfDGetMatrix )
+			ConPrintf( "^3half-D: gl2_shim matrix query unavailable — fixed-function matrices will not reach shaders^7\n" );
+	}
 
 	GL_CheckExtension( "glDrawRangeElements", drawrangeelementsfuncs, "gl_drawrangeelments", R_DRAW_RANGEELEMENTS_EXT );
 

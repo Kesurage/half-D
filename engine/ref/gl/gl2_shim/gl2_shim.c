@@ -32,6 +32,7 @@ Limitations:
 */
 
 #include "gl_local.h"
+#include <math.h>
 #if !XASH_GL_STATIC
 #include "gl2_shim.h"
 
@@ -118,7 +119,7 @@ static struct
 
 static struct
 {
-	float mvp[16], mv[16], pr[16], dummy[16];
+	float mvp[16], mv[16], pr[16], tex[16], dummy[16];
 	GLenum mode;
 	float *current;
 	uint64_t update;
@@ -1168,6 +1169,29 @@ static void APIENTRY GL2_Color4ubv( const GLubyte *v )
 	GL2_Color4ub( v[0], v[1], v[2], v[3] );
 }
 
+// half-D: remaining immediate-mode variants the Diffusion client resolves
+static void APIENTRY GL2_Color3fv( const GLfloat *v ) { GL2_Color4f( v[0], v[1], v[2], 1.f ); }
+static void APIENTRY GL2_Color3ub( GLubyte r, GLubyte g, GLubyte b ) { GL2_Color4ub( r, g, b, 255 ); }
+static void APIENTRY GL2_Color4fv( const GLfloat *v ) { GL2_Color4f( v[0], v[1], v[2], v[3] ); }
+
+static void APIENTRY GL2_TexCoord1f( GLfloat u ) { GL2_TexCoord2f( u, 0.f ); }
+static void APIENTRY GL2_TexCoord1fv( const GLfloat *v ) { GL2_TexCoord2f( v[0], 0.f ); }
+static void APIENTRY GL2_TexCoord2fv( const GLfloat *v ) { GL2_TexCoord2f( v[0], v[1] ); }
+static void APIENTRY GL2_TexCoord3f( GLfloat u, GLfloat v, GLfloat w ) { GL2_TexCoord2f( u, v ); }
+static void APIENTRY GL2_TexCoord3fv( const GLfloat *v ) { GL2_TexCoord2f( v[0], v[1] ); }
+static void APIENTRY GL2_TexCoord4f( GLfloat u, GLfloat v, GLfloat w, GLfloat t ) { GL2_TexCoord2f( u, v ); }
+static void APIENTRY GL2_TexCoord4fv( const GLfloat *v ) { GL2_TexCoord2f( v[0], v[1] ); }
+
+static void APIENTRY GL2_Normal3f( GLfloat x, GLfloat y, GLfloat z )
+{
+	GLfloat v[3] = { x, y, z };
+	GL2_Normal3fv( v );
+}
+
+static void APIENTRY GL2_MultiTexCoord1f( GLenum tex, GLfloat u ) { GL2_MultiTexCoord2f( tex, u, 0.f ); }
+static void APIENTRY GL2_MultiTexCoord3f( GLenum tex, GLfloat u, GLfloat v, GLfloat w ) { GL2_MultiTexCoord2f( tex, u, v ); }
+static void APIENTRY GL2_MultiTexCoord4f( GLenum tex, GLfloat u, GLfloat v, GLfloat w, GLfloat t ) { GL2_MultiTexCoord2f( tex, u, v ); }
+
 static void APIENTRY GL2_TexCoord2f( GLfloat u, GLfloat v )
 {
 	// by spec glTexCoord always updates texunit 0
@@ -1277,6 +1301,10 @@ static void APIENTRY GL2_MatrixMode( GLenum m )
 	case GL_PROJECTION:
 		gl2wrap_matrix.current = gl2wrap_matrix.pr;
 		break;
+	case GL_TEXTURE:
+		// half-D: tracked separately — the client injects it as u_hdTexMat0
+		gl2wrap_matrix.current = gl2wrap_matrix.tex;
+		break;
 	default:
 		gl2wrap_matrix.current = gl2wrap_matrix.dummy;
 		break;
@@ -1357,6 +1385,131 @@ static void APIENTRY GL2_LoadMatrixf( const GLfloat *m )
 {
 	memcpy( gl2wrap_matrix.current, m, 16 * sizeof( float ));
 	gl2wrap_matrix.update = 0xFFFFFFFFFFFFFFFF;
+}
+
+// half-D: forward declarations — Scalef/Translatef/Normal3fv are defined
+// further down in the immediate-mode section
+static void APIENTRY GL2_Scalef( GLfloat x, GLfloat y, GLfloat z );
+static void APIENTRY GL2_Translatef( GLfloat x, GLfloat y, GLfloat z );
+static void APIENTRY GL2_Normal3fv( const GLfloat *v );
+
+// half-D: matrix stack + remaining fixed-function surface the Diffusion
+// client resolves through R_GetProcAddress (see tools/audit_es_surface.py).
+// Without these the client's opengl_110 table fails to resolve and the
+// custom renderer disables itself on the native GLES3 path.
+#define GL2_MAX_MATRIX_STACK 32
+static float gl2wrap_matrix_stack[3][GL2_MAX_MATRIX_STACK][16];
+static int   gl2wrap_matrix_stack_pos[3];
+
+static int GL2_MatrixSlot( void )
+{
+	switch( gl2wrap_matrix.mode )
+	{
+	case GL_MODELVIEW:  return 0;
+	case GL_PROJECTION: return 1;
+	default:            return 2;
+	}
+}
+
+static void APIENTRY GL2_PushMatrix( void )
+{
+	int slot = GL2_MatrixSlot();
+	if( gl2wrap_matrix_stack_pos[slot] >= GL2_MAX_MATRIX_STACK )
+		return;
+	memcpy( gl2wrap_matrix_stack[slot][gl2wrap_matrix_stack_pos[slot]++], gl2wrap_matrix.current, 16 * sizeof( float ));
+}
+
+static void APIENTRY GL2_PopMatrix( void )
+{
+	int slot = GL2_MatrixSlot();
+	if( gl2wrap_matrix_stack_pos[slot] <= 0 )
+		return;
+	memcpy( gl2wrap_matrix.current, gl2wrap_matrix_stack[slot][--gl2wrap_matrix_stack_pos[slot]], 16 * sizeof( float ));
+	gl2wrap_matrix.update = 0xFFFFFFFFFFFFFFFF;
+}
+
+static void APIENTRY GL2_MultMatrixf( const GLfloat *m )
+{
+	float tmp[16];
+	GL2_Mul4x4( gl2wrap_matrix.current, m, tmp );
+	memcpy( gl2wrap_matrix.current, tmp, 16 * sizeof( float ));
+	gl2wrap_matrix.update = 0xFFFFFFFFFFFFFFFF;
+}
+
+static void APIENTRY GL2_Rotatef( GLfloat angle, GLfloat x, GLfloat y, GLfloat z )
+{
+	float r[16] = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
+	float len = sqrtf( x * x + y * y + z * z );
+
+	if( len > 0.000001f && angle != 0.0f )
+	{
+		// column-major rotation, OpenGL convention, angle in degrees
+		float c = cosf( angle * (float)M_PI / 180.0f );
+		float s = sinf( angle * (float)M_PI / 180.0f );
+		float t = 1.0f - c;
+
+		x /= len; y /= len; z /= len;
+		r[0] = t*x*x + c;   r[1] = t*x*y + s*z; r[2]  = t*x*z - s*y; r[3]  = 0.0f;
+		r[4] = t*x*y - s*z; r[5] = t*y*y + c;   r[6]  = t*y*z + s*x; r[7]  = 0.0f;
+		r[8] = t*x*z + s*y; r[9] = t*y*z - s*x; r[10] = t*z*z + c;   r[11] = 0.0f;
+	}
+	GL2_MultMatrixf( r );
+}
+
+static void APIENTRY GL2_Frustum( double l, double r, double b, double t, double n, double f )
+{
+	float m[16] = {0};
+
+	m[0]  = 2.0f * (float)n / (float)( r - l );
+	m[5]  = 2.0f * (float)n / (float)( t - b );
+	m[8]  = (float)( r + l ) / (float)( r - l );
+	m[9]  = (float)( t + b ) / (float)( t - b );
+	m[10] = -(float)( f + n ) / (float)( f - n );
+	m[11] = -1.0f;
+	m[14] = -2.0f * (float)( f * n ) / (float)( f - n );
+	GL2_MultMatrixf( m );
+}
+
+static void APIENTRY GL2_Scaled( double x, double y, double z ) { GL2_Scalef((float)x, (float)y, (float)z ); }
+static void APIENTRY GL2_Translated( double x, double y, double z ) { GL2_Translatef((float)x, (float)y, (float)z ); }
+static void APIENTRY GL2_Rotated( double a, double x, double y, double z ) { GL2_Rotatef((float)a, (float)x, (float)y, (float)z ); }
+static void APIENTRY GL2_LoadMatrixd( const GLdouble *m )
+{
+	float f[16];
+	int i;
+	for( i = 0; i < 16; i++ ) f[i] = (float)m[i];
+	GL2_LoadMatrixf( f );
+}
+static void APIENTRY GL2_MultMatrixd( const GLdouble *m )
+{
+	float f[16];
+	int i;
+	for( i = 0; i < 16; i++ ) f[i] = (float)m[i];
+	GL2_MultMatrixf( f );
+}
+
+// half-D: expose the tracked matrices to the client renderer, which injects
+// them as uniforms into its own GLSL programs on the native GLES3 path
+// (the client resolves this through R_GetProcAddress).
+void GL2_GetMatrix( GLenum mode, GLfloat *out )
+{
+	GL2_Mul4x4( gl2wrap_matrix.mv, gl2wrap_matrix.pr, gl2wrap_matrix.mvp );
+
+	switch( mode )
+	{
+	case GL_MODELVIEW_MATRIX:
+		memcpy( out, gl2wrap_matrix.mv, 16 * sizeof( float ));
+		break;
+	case GL_PROJECTION_MATRIX:
+		memcpy( out, gl2wrap_matrix.pr, 16 * sizeof( float ));
+		break;
+	case GL_TEXTURE_MATRIX:
+		memcpy( out, gl2wrap_matrix.tex, 16 * sizeof( float ));
+		break;
+	default:
+		memcpy( out, gl2wrap_matrix.mvp, 16 * sizeof( float ));
+		break;
+	}
 }
 
 static void (APIENTRY *rpglGetFloatv)( GLenum pname, GLfloat *params );
@@ -1720,6 +1873,38 @@ static void APIENTRY GL2_DrawArrays( GLenum mode, GLint first, GLsizei count )
 	if( count <= 0 )
 		return;
 
+	// half-D: GLES has no GL_QUADS in array draws. Expand quad arrays into
+	// triangles through the shared triquads index buffer (per-quad pattern
+	// 0,1,2 0,2,3) with a basevertex offset for the array start. This is
+	// what the grass renderer's DrawArrays(GL_QUADS) path needs on the
+	// native GLES3 renderer.
+	if( mode == GL_QUADS && ( count & 3 ) == 0 )
+	{
+		int quads = count / 4;
+		int maxQuads = TRIQUADS_SIZE / 6;
+
+		if( quads > maxQuads )
+			quads = maxQuads;
+
+		GL2_SetupArrays( 0, first + count - 1 );
+
+		if( pglDrawRangeElementsBaseVertex )
+		{
+			GLint prevElementBuffer = 0;
+
+			// do not pollute a client-bound VAO with our element buffer
+			pglGetIntegerv( GL_ELEMENT_ARRAY_BUFFER_BINDING_ARB, &prevElementBuffer );
+			pglBindBufferARB( GL_ELEMENT_ARRAY_BUFFER_ARB, gl2wrap.triquads_ibo[0] );
+			pglDrawRangeElementsBaseVertex( GL_TRIANGLES, 0, first + count - 1, quads * 6, GL_UNSIGNED_SHORT, NULL, first );
+			pglBindBufferARB( GL_ELEMENT_ARRAY_BUFFER_ARB, (GLuint)prevElementBuffer );
+		}
+		else
+		{
+			gEngfuncs.Con_Printf( S_ERROR "GL2_DrawArrays: GL_QUADS needs basevertex draws\n" );
+		}
+		return;
+	}
+
 	// vertices referenced are [first, first + count - 1], and first may be nonzero
 	GL2_SetupArrays( 0, first + count - 1 );
 	rpglDrawArrays( mode, first, count );
@@ -1910,6 +2095,43 @@ void *GL2_ShimGetProcAddress( const char *name )
 	if( !Q_strcmp( name, "glVertexPointer" ) ) return (void *)GL2_VertexPointer;
 	if( !Q_strcmp( name, "glColorPointer" ) ) return (void *)GL2_ColorPointer;
 	if( !Q_strcmp( name, "glTexCoordPointer" ) ) return (void *)GL2_TexCoordPointer;
+	// half-D: matrix stack + immediate-mode variants (Diffusion client surface)
+	if( !Q_strcmp( name, "glPushMatrix" ) ) return (void *)GL2_PushMatrix;
+	if( !Q_strcmp( name, "glPopMatrix" ) ) return (void *)GL2_PopMatrix;
+	if( !Q_strcmp( name, "glMultMatrixf" ) ) return (void *)GL2_MultMatrixf;
+	if( !Q_strcmp( name, "glMultMatrixd" ) ) return (void *)GL2_MultMatrixd;
+	if( !Q_strcmp( name, "glRotatef" ) ) return (void *)GL2_Rotatef;
+	if( !Q_strcmp( name, "glRotated" ) ) return (void *)GL2_Rotated;
+	if( !Q_strcmp( name, "glScaled" ) ) return (void *)GL2_Scaled;
+	if( !Q_strcmp( name, "glTranslated" ) ) return (void *)GL2_Translated;
+	if( !Q_strcmp( name, "glLoadMatrixd" ) ) return (void *)GL2_LoadMatrixd;
+	if( !Q_strcmp( name, "glFrustum" ) ) return (void *)GL2_Frustum;
+	if( !Q_strcmp( name, "glColor3fv" ) ) return (void *)GL2_Color3fv;
+	if( !Q_strcmp( name, "glColor3ub" ) ) return (void *)GL2_Color3ub;
+	if( !Q_strcmp( name, "glColor4fv" ) ) return (void *)GL2_Color4fv;
+	if( !Q_strcmp( name, "glNormal3f" ) ) return (void *)GL2_Normal3f;
+	if( !Q_strcmp( name, "glTexCoord1f" ) ) return (void *)GL2_TexCoord1f;
+	if( !Q_strcmp( name, "glTexCoord1fv" ) ) return (void *)GL2_TexCoord1fv;
+	if( !Q_strcmp( name, "glTexCoord2fv" ) ) return (void *)GL2_TexCoord2fv;
+	if( !Q_strcmp( name, "glTexCoord3f" ) ) return (void *)GL2_TexCoord3f;
+	if( !Q_strcmp( name, "glTexCoord3fv" ) ) return (void *)GL2_TexCoord3fv;
+	if( !Q_strcmp( name, "glTexCoord4f" ) ) return (void *)GL2_TexCoord4f;
+	if( !Q_strcmp( name, "glTexCoord4fv" ) ) return (void *)GL2_TexCoord4fv;
+	if( !Q_strcmp( name, "glMultiTexCoord1f" ) ) return (void *)GL2_MultiTexCoord1f;
+	if( !Q_strcmp( name, "glMultiTexCoord3f" ) ) return (void *)GL2_MultiTexCoord3f;
+	if( !Q_strcmp( name, "glMultiTexCoord4f" ) ) return (void *)GL2_MultiTexCoord4f;
+	// half-D: tracked matrices for the client's GLSL uniform injection
+	if( !Q_strcmp( name, "halfD_GL2GetMatrix" ) ) return (void *)GL2_GetMatrix;
+	// half-D: draw + buffer wrappers — the client's client-memory array
+	// draws (grass, decals) must go through SetupArrays to get uploaded,
+	// and its VBO binds must keep the shim's stream-buffer tracking honest.
+	// VBO/VAO paths with explicit attrib pointers are untouched: their
+	// legacy-array flag mask stays empty and SetupArrays returns early.
+	if( !Q_strcmp( name, "glDrawArrays" ) ) return (void *)GL2_DrawArrays;
+	if( !Q_strcmp( name, "glDrawElements" ) ) return (void *)GL2_DrawElements;
+	if( !Q_strcmp( name, "glDrawRangeElements" ) ) return (void *)GL2_DrawRangeElements;
+	if( !Q_strcmp( name, "glBindBufferARB" ) ) return (void *)GL2_BindBufferARB;
+	if( !Q_strcmp( name, "glBindBuffer" ) ) return (void *)GL2_BindBufferARB;
 	return NULL;
 }
 #else

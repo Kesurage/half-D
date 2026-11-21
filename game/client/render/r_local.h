@@ -664,6 +664,7 @@ typedef struct
 	bool		uniforms_economy;
 
 	float version;
+	bool es_context;	// half-D: native GLES context (ref_gles3compat) — shaders emit GLSL ES 300 and fixed-function matrices are injected as uniforms
 } glConfig_t;
 
 extern glState_t glState;

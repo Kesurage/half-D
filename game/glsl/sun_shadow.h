@@ -16,7 +16,11 @@ GNU General Public License for more details.
 #ifndef SUN_SHADOW_H
 #define SUN_SHADOW_H
 
-#if defined( GL_ES ) && !defined( GL_EXT_shadow_samplers )
+#if __VERSION__ == 300
+// half-D: GLSL ES 300 — shadow samplers are core (see shadow_proj.h)
+#define shadow2D( s, c ) vec4( texture( (s), (c) ) )
+#define shadow2DOffset( s, c, o ) textureOffset( (s), (c), (o) )
+#elif defined( GL_ES ) && !defined( GL_EXT_shadow_samplers )
 #ifndef sampler2DShadow
 #define sampler2DShadow sampler2D
 #define shadow2D( s, c ) vec4( texture2D( (s), (c).xy ).r )

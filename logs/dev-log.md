@@ -519,3 +519,55 @@ engine lifecycle fixes from v0.4.3.
 Documented for the user: the APK also ships libref_gles3compat.so — if
 gl4es still misbehaves on this device, "gles3compat" can be tested via
 -ref on the command line.
+
+## 2026-11-22 — v0.5.0: native GLES 3 renderer port (the "heavily modified" round)
+
+The v0.4.4 field log settled it: menus no longer crash, but 5-15 fps with
+80-160 ms steady scene times, spikes to 66-76 s, and render scale changes
+change nothing — the frame is CPU-bound inside the gl4es translation layer,
+not fill-bound. Aynekko's engine link resolved to what we already ship (fwgs
++ their game code; there is no separate engine fork), so the remaining lever
+was the renderer path itself: run the client's GL2 renderer NATIVELY on the
+GLES 3.2 context (Mali-G57) instead of through gl4es's per-call translation.
+
+Port work (client, r_opengl/r_shader):
+- ES context detection + "OpenGL ES x.y" version parse (Q_atof read 0)
+- GLSL ES 300 on-the-fly transform in GL_ProcessShader/GL_ParseFile:
+  #version 300 es, texture2D/Lod/Proj/Cube(+Lod) -> texture/textureLod/
+  textureProj, gl_FragColor -> declared out, varying -> in/out, attribute
+  -> in, gl_ModelViewProjectionMatrix/gl_ModelViewMatrix/gl_TextureMatrix[0]
+  -> u_hdMVP/u_hdMV/u_hdTexMat0 uniforms (uploaded in GL_BindShader),
+  gl_Vertex/gl_Normal/gl_Color/gl_MultiTexCoord0 -> layout-pinned shim
+  attribs, gl_TexCoord[0] -> declared varying, gl_ClipVertex -> sink,
+  "sample" (ES300 reserved word) -> hd_sample
+- shadow_*.h: ES 300 branch — shadow samplers are core there; the ES 1.00
+  fallbacks' #ifndef guards are false when the types are predefined
+- r_opengl GL_CheckExtension: stub table for every resolve-only desktop
+  function (call-site audited by tools/audit_es_surface.py), ARB object
+  API wrappers (create/attach/delete/use/info/params -> core GL2), generic
+  ARB/EXT suffix retry (glGenBuffersARB -> glGenBuffers, shim exports...)
+
+Port work (engine):
+- gl2_shim: matrix stack (push/pop/rotate/mult/frustum + double variants),
+  missing immediate-mode variants, GL2_GetMatrix export (halfD_GL2GetMatrix),
+  dedicated texture-matrix tracking, draw-wrapper + glBindBuffer exports
+  (client-memory arrays — grass, decals — must flow through SetupArrays),
+  GL_QUADS array expansion via the shared triquads ibo + basevertex
+- ref_common.c: Android renderer preference gles3compat first, gl4es as
+  automatic fallback; launcher no longer pins -ref gl4es
+
+Precompile:
+- decoupled from the binary cache (v0.4.4's crash fix had disabled it —
+  every permutation compiled lazily mid-frame = the 13-76 s stalls);
+  compiles from source behind the loading screen again
+
+Validation: tools/validate_es300.py replicates the exact preprocessing and
+transform, compiles+links every shaderlist permutation and fixed glsl pair
+with glslangValidator as GLSL ES 300: 1141/1141 clean (was 1005/1141 at the
+first run — found and fixed samplerCubeShadow precision, shadow2D ES300
+mapping, sample keyword, texture2DProj, gl_ClipVertex, gl_Vertex...).
+
+Known limitations on the ES path (documented for the field log): studio
+decals render through the shim's fixed-function program (attribute
+locations differ from the decal shader); shadow permutations compile but
+are untested on device; gl4es remains selectable via -ref gl4es.

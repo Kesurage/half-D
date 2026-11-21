@@ -270,12 +270,13 @@ public class XashActivity extends SDLActivity {
 		}
 
 		String argv = getIntent().getStringExtra("argv");
-		// half-D: default to the gl4es renderer — Diffusion's client-side
-		// renderer requires a desktop GL compatibility context (CONTEXT_TYPE_GL)
-		// and refuses GLES contexts outright. gl4es provides exactly that on
-		// top of GLES. The engine also hardcodes this fallback (ref_common.c),
-		// so this is only the first of three layers.
-		if (argv == null) argv = "-console -log -dev 2 -ref gl4es";
+		// half-D v0.5.0: no hardcoded renderer anymore. The engine's
+		// ref_common.c now prefers the native GLES 3.0 path (ref_gles3compat)
+		// with gl4es as automatic fallback, so the command line must not pin
+		// anything — a pinned -ref would defeat the fallback chain. Users can
+		// still force a renderer by passing -ref gl4es / -ref gles3compat in
+		// the launcher arguments.
+		if (argv == null) argv = "-console -log -dev 2";
 
 		return argv.split(" ");
 	}

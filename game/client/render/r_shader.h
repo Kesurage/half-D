@@ -93,6 +93,11 @@ typedef struct glsl_prog_s
 	GLint u_ViewMatrix;
 	GLint u_ModelMatrix;
 	GLint u_ModelViewMatrix;
+	// half-D: fixed-function matrix uniforms injected on the native GLES3
+	// path (shaders rewritten from gl_ModelViewProjectionMatrix/gl_ModelViewMatrix)
+	GLint u_hdMVP;
+	GLint u_hdMV;
+	GLint u_hdTexMat0;
 	GLint u_LightViewProjectionMatrix;
 	GLint u_ModelViewProjectionMatrix;
 	GLint u_GenericCondition;	// generic parm

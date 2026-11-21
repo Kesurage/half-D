@@ -18,7 +18,13 @@ GNU General Public License for more details.
 
 #define SHADOW_VOGEL_DISK
 
-#if defined( GL_ES ) && !defined( GL_EXT_shadow_samplers )
+#if __VERSION__ == 300
+// half-D: GLSL ES 300 — shadow samplers are core and texture() does the
+// compare. The ES 1.00 fallbacks below don't apply (their sampler2DShadow
+// #ifndef guard is false when the type is predefined).
+#define shadow2D( s, c ) vec4( texture( (s), (c) ) )
+#define shadow2DOffset( s, c, o ) textureOffset( (s), (c), (o) )
+#elif defined( GL_ES ) && !defined( GL_EXT_shadow_samplers )
 #ifndef sampler2DShadow
 #define sampler2DShadow sampler2D
 #define shadow2D( s, c ) vec4( texture2D( (s), (c).xy ).r )

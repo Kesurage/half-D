@@ -16,7 +16,11 @@ GNU General Public License for more details.
 
 #define NUM_SAMPLES		4.0
 
-#if defined( GL_ES ) && !defined( GL_EXT_gpu_shader4 )
+#if __VERSION__ == 300
+// half-D: GLSL ES 300 — cube shadow samplers are core; texture() takes
+// vec4 (direction + reference depth) and does the compare
+#define shadowCube( s, c ) vec4( texture( (s), (c) ) )
+#elif defined( GL_ES ) && !defined( GL_EXT_gpu_shader4 )
 #ifndef samplerCubeShadow
 #define samplerCubeShadow samplerCube
 #define shadowCube( s, c ) vec4( textureCube( (s), (c).xyz ).r )
