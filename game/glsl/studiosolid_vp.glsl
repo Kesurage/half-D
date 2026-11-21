@@ -48,7 +48,7 @@ uniform vec4		u_GammaTable[64];
 #if defined( STUDIO_AMBIENT_PROBES )
 uniform vec3		u_AmbientCube[6];
 
-vec3 SampleAmbientCube( const in vec3 N )
+vec3 SampleAmbientCube( in vec3 N )
 {
 	vec3 nSqr = N * N;
 	int side_x = ( N.x < 0.0 ) ? 1 : 0;

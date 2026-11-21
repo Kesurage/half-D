@@ -16,7 +16,7 @@ GNU General Public License for more details.
 #ifndef MATRIX_H
 #define MATRIX_H
 
-mat4 Mat4FromOriginQuat( const in vec4 quaternion, const in vec3 origin )
+mat4 Mat4FromOriginQuat( in vec4 quaternion, in vec3 origin )
 {
 	mat4 mat;
 

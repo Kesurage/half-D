@@ -227,3 +227,26 @@ Fix (v0.1.4, game fork):
 - known residual: smaa.h / emboss.h / glitch_fp.glsl / alpha2coverage.h use
   textureLod/textureSize (GLSL 1.30+ only) — those effects will stay off on
   GL 2.x until a follow-up compat pass; not needed for core rendering.
+
+## 11. v0.1.4 device crash post-mortem: map-load OOB + the real shader errors
+
+v0.1.4 reached the menu (FiraSans rendered, config, achievements, sprites)
+and started loading the first map — then SIGSEGV in
+`Mod_LinkLeafLights (r_world.cpp:760)`:
+
+- Crash: after the last leaflight is consumed the loop keeps dereferencing
+  `lp` one past the array end on every remaining leaf (`j == numleaflights`
+  is not checked in the outer condition). On desktop it reads heap garbage;
+  on Android's hardened allocator the read hits a guard page (SEGV_ACCERR).
+  Fixed with `j < world->numleaflights &&` — semantics otherwise identical.
+- Shaders: the log listed 27 failed shaders but NO driver error text (the
+  at_error ALERTs and the info-log Msg are gated by developer level; the
+  -dev 2 we pass had not taken effect at client-init time). Correlation
+  found by diffing the init list: 100% of the failed shaders #include
+  mathlib.h, 100% of the passed shaders don't. mathlib.h (and matrix.h,
+  shadow_omni.h, studiosolid_vp.glsl, terrain.h, tnbasis.h) use the
+  desktop-GLSL `const in` parameter qualifier — GLSL ES 1.00 (gl4es target)
+  allows only one qualifier per parameter. mathlib.h also relies on implicit
+  int->float conversions, which ES 1.00 forbids. All swept/fixed; and shader
+  compile/link errors now print the driver info log unconditionally, so the
+  next log names any remaining offender with the compiler's own message.

@@ -757,7 +757,11 @@ static void Mod_LinkLeafLights( void )
 
 	for( i = j = 0; i < world->numleafs; i++, leaf++ )
 	{
-		if( world->numleaflights > 0 && lp->leaf == leaf )
+		// half-D: guard the deref — once all leaflights are consumed
+		// (j == numleaflights) the old code kept reading lp one past
+		// the array end for every remaining leaf, which segfaults on
+		// Android (guard page after the allocation).
+		if( j < world->numleaflights && lp->leaf == leaf )
 		{
 			leaf->ambient_light = lp; // pointer to first light in the array that belong to this leaf
 

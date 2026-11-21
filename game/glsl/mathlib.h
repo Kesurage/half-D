@@ -35,7 +35,7 @@ GNU General Public License for more details.
 #define DEG2RAD( x )	( x * (M_PI / 180.0))
 
 // remap a value in the range [A,B] to [C,D].
-float RemapVal( float val, const in vec4 bounds )
+float RemapVal( float val, in vec4 bounds )
 {
 	return bounds.z + (bounds.w - bounds.z) * (val - bounds.x) / (bounds.y - bounds.x);
 }
@@ -140,7 +140,7 @@ vec2 VogelDiskSample( int sampleIndex, int samplesCount, float phi )
 {
 	const float goldenAngle = 2.4;
 	float r = sqrt( float( sampleIndex ) + 0.5 ) * inversesqrt( float( samplesCount ) );
-	float theta = sampleIndex * goldenAngle + phi;
+	float theta = float( sampleIndex ) * goldenAngle + phi;
 	return r * vec2( cos( theta ), sin( theta ) );
 }
 
@@ -224,17 +224,17 @@ vec3 VectorAngles( vec3 vecSrc )
 		float tmp;
 
 		ang.y = RAD2DEG( atan( forward.y, forward.x ) );
-		if( ang.y < 0 ) ang.y += 360;
+		if( ang.y < 0.0 ) ang.y += 360.0;
 
 		tmp = sqrt( forward.x * forward.x + forward.y * forward.y );
 		ang.x = RAD2DEG( atan( -forward.z, tmp ) );
-		if( ang.x < 0 ) ang.x += 360;
+		if( ang.x < 0.0 ) ang.x += 360.0;
 	}
 	else
 	{
 		// fast case
 		ang.y = 0.0f;
-		if( forward.z > 0 )
+		if( forward.z > 0.0 )
 			ang.x = 270.0f;
 		else ang.x = 90.0f;
 	}

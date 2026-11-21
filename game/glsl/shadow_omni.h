@@ -20,7 +20,7 @@ uniform samplerCubeShadow	u_ShadowMap;
 
 #define SHADOW_VOGEL_DISK  // uncomment this to enable smoothing
 
-float depthCube( const in vec3 coord, const float scale, const float bias )
+float depthCube( in vec3 coord, const float scale, const float bias )
 {
 	float fs_z = max( abs( coord.x ), max( abs( coord.y ), abs( coord.z ) ) ) - 4.0;	// acne remove factor
 	float depth = ((fs_z * scale + bias) / fs_z) * 0.5 + 0.5;
@@ -28,7 +28,7 @@ float depthCube( const in vec3 coord, const float scale, const float bias )
 	return shadowCube( u_ShadowMap, vec4( coord, depth ) ).r;
 }
 
-float ShadowOmni( const in vec3 I, const in vec4 params )
+float ShadowOmni( in vec3 I, in vec4 params )
 {
 #if defined( SHADOW_PCF2X2 ) || defined( SHADOW_PCF3X3 ) || defined( SHADOW_VOGEL_DISK )
 	vec3 forward, right, up;

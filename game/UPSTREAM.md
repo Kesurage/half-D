@@ -31,3 +31,21 @@
      Known residual: smaa.h/emboss.h/glitch_fp/alpha2coverage.h use
      textureLod/textureSize (GLSL 1.30+) — those effects stay broken on
      GL 2.x until a compat pass; the core world shaders are pure GLSL 1.10.
+
+  5. client/render/r_world.cpp Mod_LinkLeafLights (v0.1.5): once all leaflights
+     are consumed (j == numleaflights) the loop kept dereferencing lp one past
+     the array end for every remaining leaf — harmless OOB read on desktop
+     heap, SIGSEGV on Android's hardened allocator (guard page). Now guarded
+     with `j < world->numleaflights` instead of `world->numleaflights > 0`.
+  6. glsl/* (v0.1.5, GLSL ES 1.00 compatibility via gl4es): swept the
+     desktop-only `const in` parameter qualifier to plain `in` (12 sites,
+     mathlib.h/matrix.h/shadow_omni.h/studiosolid_vp/terrain.h/tnbasis.h) —
+     GLSL ES 1.00 allows only a single parameter qualifier, and under gl4es
+     every shader including these headers failed to compile while every
+     shader without them passed. Also made mathlib.h's implicit int->float
+     conversions explicit (float(sampleIndex)*..., += 360.0, < 0.0) — ES 1.00
+     has no implicit conversions.
+  7. client/render/r_shader.cpp (v0.1.5): shader compile/link failures now
+     print the driver info log unconditionally via Con_Printf — ALERT()/Msg()
+     are gated by developer level and v0.1.4's engine.log showed 'shader X
+     failed to compile/link' with no error text at all.

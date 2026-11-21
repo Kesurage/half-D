@@ -374,9 +374,11 @@ static void GL_LoadGPUShader( glsl_program_t *shader, const char *name, GLenum s
 
 	if( !compiled )
 	{
-		if( developer_level ) Msg( "%s", GL_PrintInfoLog( object ));
-		if( developer_level ) Msg( "Shader options:%s\n", GL_PretifyListOptions( defines ));
-		ALERT( at_error, "Couldn't compile %s\n", filename );
+		// half-D: print unconditionally — ALERT()/Msg() are gated by developer
+		// level, which made shader failures invisible in engine.log without -dev
+		gEngfuncs.Con_Printf( "%s", GL_PrintInfoLog( object ));
+		gEngfuncs.Con_Printf( "Shader options:%s\n", GL_PretifyListOptions( defines ));
+		gEngfuncs.Con_Printf( "^1Couldn't compile %s^7\n", filename );
 		pglDeleteObjectARB( object );
 		return;
 	}
@@ -401,7 +403,7 @@ static void GL_LinkProgram( glsl_program_t *shader )
 	pglLinkProgramARB( shader->handle );
 
 	pglGetObjectParameterivARB( shader->handle, GL_OBJECT_LINK_STATUS_ARB, &linked );
-	if( !linked ) ALERT( at_error, "%s\n%s shader failed to link\n", GL_PrintInfoLog( shader->handle ), shader->name );
+	if( !linked ) gEngfuncs.Con_Printf( "^1%s shader failed to link^7\n%s", shader->name, GL_PrintInfoLog( shader->handle ));
 	else shader->status |= SHADER_PROGRAM_LINKED;
 }
 

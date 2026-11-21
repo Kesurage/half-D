@@ -152,7 +152,7 @@ vec3 TerrainApplyNormal( sampler2DArray tex, vec2 tc, vec4 mask0, vec4 mask1, ve
 	return normalize( normal );
 }
 
-vec3 TerrainCalcMaterialDefines( const in float GlossScale[TERRAIN_NUM_LAYERS], const in float GlossSmoothness[TERRAIN_NUM_LAYERS], const in float EmbossScale[TERRAIN_NUM_LAYERS], vec4 mask0, vec4 mask1, vec4 mask2, vec4 mask3 )
+vec3 TerrainCalcMaterialDefines( in float GlossScale[TERRAIN_NUM_LAYERS], in float GlossSmoothness[TERRAIN_NUM_LAYERS], in float EmbossScale[TERRAIN_NUM_LAYERS], vec4 mask0, vec4 mask1, vec4 mask2, vec4 mask3 )
 {
 	vec3 result = vec3( 0.0 );
 
@@ -207,7 +207,7 @@ vec3 TerrainCalcMaterialDefines( const in float GlossScale[TERRAIN_NUM_LAYERS], 
 	return result;
 }
 
-float TerrainCalcDynLightBrightness( const in float DynLightBrightness[TERRAIN_NUM_LAYERS], vec4 mask0, vec4 mask1, vec4 mask2, vec4 mask3 )
+float TerrainCalcDynLightBrightness( in float DynLightBrightness[TERRAIN_NUM_LAYERS], vec4 mask0, vec4 mask1, vec4 mask2, vec4 mask3 )
 {
 	float result = 0.0;
 

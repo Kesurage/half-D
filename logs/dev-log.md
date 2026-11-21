@@ -126,3 +126,16 @@ renderer + its built-in FSR1 on the Mali-G57.
   -dev 2 in launcher defaults, 34 guarded uniform inits so a failed optional
   effect shader skips instead of fatal. Residual GLSL-130-only effects
   (SMAA/FSR/glitch/emboss via textureLod/textureSize) documented as off.
+
+## 2026-11-21 — v0.1.4 device crash: map-load OOB read; mathlib.h broke every shader under ES 1.00
+
+- v0.1.4 booted to menu and started map load; SIGSEGV at Mod_LinkLeafLights
+  r_world.cpp:760 — one-past-end deref of the leaflights array after all
+  lights are consumed (guard page on Android). Guarded with j < numleaflights.
+- Shader failures in the same log had no error text (ALERT/Msg developer
+  gated). Perfect correlation: failed == #include mathlib.h. Root cause:
+  desktop-only `const in` parameter qualifiers (12 sites across 6 shader
+  headers) + implicit int->float conversions in mathlib.h — both invalid in
+  GLSL ES 1.00, which is what gl4es feeds the Mali driver.
+- v0.1.5: OOB guard, const-in sweep, mathlib float casts, unconditional
+  shader compile/link diagnostics (driver info log now always in engine.log).

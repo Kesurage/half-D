@@ -20,7 +20,7 @@ attribute vec3		attr_Normal;
 attribute vec3		attr_Tangent;
 attribute vec3		attr_Binormal;
 
-mat3 ComputeTBN( const in mat4 modelMatrix )
+mat3 ComputeTBN( in mat4 modelMatrix )
 {
 	mat3 tbn;
 
