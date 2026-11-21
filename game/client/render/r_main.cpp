@@ -14,7 +14,6 @@ GNU General Public License for more details.
 */
 
 #include "hud.h"
-#include <chrono>
 #include "utils.h"
 #include "r_local.h"
 #include <stringlib.h>
@@ -2219,60 +2218,6 @@ if we don't want draw from
 the client (e.g. playersetup preview)
 ===============
 */
-// half-D: performance heartbeat — every 5 s of rendered frames, log fps,
-// average/worst frame time, scene stats and negative-cache hits; frames
-// over 150 ms are logged individually as spikes. This is the instrument
-// that makes the next device log show exactly where the frame budget goes.
-static void R_DiagFrame( void )
-{
-	if( !CVAR_TO_BOOL( gl_diag ))
-		return;
-
-	static std::chrono::steady_clock::time_point last, windowStart;
-	static int windowFrames = 0;
-	static float worstMs = 0.0f;
-	static std::chrono::steady_clock::time_point lastSpike;
-	static bool initialized = false;
-
-	auto now = std::chrono::steady_clock::now();
-
-	if( !initialized )
-	{
-		last = windowStart = lastSpike = now;
-		initialized = true;
-		return;
-	}
-
-	float frameMs = std::chrono::duration<float>( now - last ).count() * 1000.0f;
-	float windowS = std::chrono::duration<float>( now - windowStart ).count();
-	last = now;
-	windowFrames++;
-	if( frameMs > worstMs ) worstMs = frameMs;
-
-	if( frameMs > 150.0f && std::chrono::duration<float>( now - lastSpike ).count() > 2.0f )
-	{
-		gEngfuncs.Con_Printf( "perf: ^3frame spike %.0f ms^7\n", frameMs );
-		lastSpike = now;
-	}
-
-	if( windowS >= 5.0f )
-	{
-		static int prevNegHits = 0;
-		int negHits = r_negcacheHits;
-
-		gEngfuncs.Con_Printf( "perf: ^2%.1f fps^7 | frame avg %.1f ms, worst %.0f ms | wpoly %d epoly %d spoly %d grass %d | negcache %d\n",
-			windowFrames / windowS, windowS * 1000.0f / windowFrames, worstMs,
-			r_stats.c_world_polys, r_stats.c_studio_polys,
-			r_stats.c_sprite_polys, r_stats.c_grass_polys,
-			negHits - prevNegHits );
-
-		prevNegHits = negHits;
-		windowFrames = 0;
-		worstMs = 0.0f;
-		windowStart = now;
-	}
-}
-
 int HUD_RenderFrame( const ref_viewpass_t *rvp )
 {	
 	r_speeds_msg[0] = r_depth_msg[0] = '\0';
@@ -2341,8 +2286,6 @@ int HUD_RenderFrame( const ref_viewpass_t *rvp )
 
 	// restore global blur after saving the game
 	ui_forcenoblur->value = 0;
-
-	R_DiagFrame();
 
 	return 1;
 }

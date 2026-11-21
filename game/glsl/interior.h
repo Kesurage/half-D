@@ -26,7 +26,7 @@ vec4 InteriorMapping( vec4 diffuse, vec2 TexDiffuse, vec3 N, float Time, vec3 Vi
 
 	vec2 blockNums = floor(TexDiffuse * gridSize);
 
-	const float staticSeed = 500.0; // room positions // half-D: int literal is a type error on strict GLSL ES 1.00 (Mali S0001)
+	const float staticSeed = 500.0; // room positions
 	const float randomSeed = staticSeed;//don't change          floor(Time * SEED_CHANGING_FREQ); // lighting change
 
 	float staticVal = randomFunction2(staticSeed, blockNums);
@@ -54,7 +54,7 @@ vec4 InteriorMapping( vec4 diffuse, vec2 TexDiffuse, vec3 N, float Time, vec3 Vi
 	vec3 sampleDir = normalize( ViewVec );
 
 #if defined( STUDIO_INTERIOR )
-	sampleDir *= vec3( -1, 1, 1 );
+	sampleDir *= vec3( -1.0, 1.0, 1.0 );
 #endif
 
 	vec3 viewInv = 1.0 / sampleDir;

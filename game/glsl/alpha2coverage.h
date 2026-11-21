@@ -34,19 +34,12 @@ float AlphaSharpening(in float alpha, in float cutoff)
     return (alpha - cutoff) / max(abs(dFdx(alpha)) + abs(dFdy(alpha)), 0.0001) + 0.5;
 }
 
-#if defined( GL4ES )
-// half-D: textureSize() is GLSL 130+ and does not survive the gl4es
-// translation to ES 1.00 - return alpha unmodified there. The
-// AlphaSharpening path above still works: it only needs derivatives,
-// which gl4es enables via GL_OES_standard_derivatives.
 float AlphaRescaling(sampler2D tex, in vec2 texCoords, in float alpha)
 {
-    return alpha;
-}
-#else
-float AlphaRescaling(sampler2D tex, in vec2 texCoords, in float alpha)
-{
+#if defined( GLSL_gpu_shader4 )
     const float mipScale = 0.25;
-    return alpha * (1.0 + CalcMipLevel(tex, texCoords * textureSize(tex, 0)) * mipScale);
-}
+    return alpha * (1.0 + CalcMipLevel(tex, texCoords * vec2(textureSize(tex, 0))) * mipScale);
+#else
+    return alpha;
 #endif
+}

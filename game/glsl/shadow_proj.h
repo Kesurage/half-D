@@ -18,21 +18,16 @@ GNU General Public License for more details.
 
 #define SHADOW_VOGEL_DISK
 
-#ifdef GL4ES
-// half-D: GLSL ES 1.00 has no shadow samplers (GLSL 1.30 feature, and
-// sampler2DShadow is a reserved word there). The shadow map is a depth
-// texture; gl4es lets us sample it as a regular texture and compare
-// manually — same result, real filtering preserved (Vogel disk etc.)
-uniform sampler2D	u_ShadowMap;
-vec2 shadow2D_hdes( vec3 c )
-{
-	return vec2( step( c.z, texture2D( u_ShadowMap, c.xy ).r ));
-}
-#define shadow2D( tex, c ) shadow2D_hdes( c )
-#define shadow2DOffset( tex, c, off ) shadow2D_hdes( vec3( (c).xy + vec2( off ), (c).z ))
-#else
-uniform sampler2DShadow	u_ShadowMap;
+#if defined( GL_ES ) && !defined( GL_EXT_shadow_samplers )
+#ifndef sampler2DShadow
+#define sampler2DShadow sampler2D
+#define shadow2D( s, c ) vec4( texture2D( (s), (c).xy ).r )
 #endif
+#elif defined( GL_ES )
+#define shadow2D( s, c ) vec4( shadow2DEXT( (s), (c) ) )
+#endif
+
+uniform sampler2DShadow	u_ShadowMap;
 
 #define shadowval( center, xoff, yoff ) float( shadow2DOffset( u_ShadowMap, center, ivec2( xoff, yoff )))
 

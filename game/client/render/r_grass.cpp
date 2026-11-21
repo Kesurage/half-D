@@ -733,11 +733,6 @@ void R_RenderShadowGrassOnList( void )
 	GL_Cull( GL_NONE );	// grass is double-sided poly
 	GL_BindShader( glsl.grassDepthFill );
 
-	// half-D: the depth-fill shader may be missing (failed to compile)
-	// — a NULL currentshader must not segfault the shadow pass
-	if( RI->currentshader == NULL )
-		return;
-
 	Vector4D grass_params[2];
 	// view origin + real time
 	grass_params[0] = Vector4D( RI->vieworg.x, RI->vieworg.y, RI->vieworg.z, tr.time );
@@ -1692,6 +1687,9 @@ void R_DrawGrass( qboolean lightpass )
 	if( !lightpass && !shadowpass )
 		normalpass = true;
 
+	pglBindVertexArray( 0 );
+	pglBindBufferARB( GL_ARRAY_BUFFER_ARB, 0 );
+
 	GL_SelectTexture( GL_TEXTURE0 ); // keep texcoords at 0-th unit
 	pglEnableClientState( GL_TEXTURE_COORD_ARRAY );
 	pglTexCoordPointer( 2, GL_SHORT, sizeof( grassvert_t ), grassverts->t );
@@ -1706,12 +1704,7 @@ void R_DrawGrass( qboolean lightpass )
 		if( tr.fogEnabled && normalpass )
 		{
 			GL_BindShader( glsl.genericFog );
-
-			// half-D: genericFog may be missing (failed to compile) — the
-			// v0.1.6 device build crashed exactly here (u_FogParams at
-			// offset 0x524 of a NULL program pointer)
-			if( RI->currentshader != NULL )
-				pglUniform4fARB( RI->currentshader->u_FogParams, tr.fogColor[0], tr.fogColor[1], tr.fogColor[2], tr.fogDensity );
+			pglUniform4fARB( RI->currentshader->u_FogParams, tr.fogColor[0], tr.fogColor[1], tr.fogColor[2], tr.fogDensity );
 		}
 	}
 

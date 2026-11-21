@@ -266,3 +266,14 @@ v0.1.6 remains the current release awaiting a real report.
 - The validator harness itself needed three emulations: precision
   injection, f-suffix stripping, legacy GL matrix stubs.
 - Mobile quality preset (gl_mobile_quality) on the GL 2.x path.
+
+## 2026-11-21 — v0.2.4: the yalnie merge
+
+- yalnie (Diffusion-Android dev) shared his source: same gl4es
+  architecture, opposite shader strategy (#version 130, gl4es -> ES 3.00).
+  Our v0.2.1-v0.2.3 ES 1.00 fight was the wrong hill — 130 keeps round(),
+  textureLodOffset, shadow samplers, texture arrays alive on Mali-G57.
+- Merged his game tree (558 files: client/server/common/game_shared/glsl)
+  into game/, kept our engine/build/CI, re-applied MAXSTUDIOBONES guard +
+  mobile quality preset on top of his files.
+- validate_gl130.py sweep: 384/384 permutations clean under desktop 130.

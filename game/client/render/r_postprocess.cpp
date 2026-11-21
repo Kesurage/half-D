@@ -51,7 +51,7 @@ static const float fAOScale = 0.5f;
 static void InitAutoExposure(void)
 {
 	// init average luminance
-	const int mipmap_count = 1 + floor( log2( Q_max( glState.width, glState.height ) ) );
+	const int mipmap_count = Q_min( 1 + (int)floor( log2( Q_max( glState.width, glState.height ) ) ), 16 );
 
 	if( tr.avg_luminance_texture )
 	{
@@ -63,8 +63,20 @@ static void InitAutoExposure(void)
 		tr.avg_luminance_texture = CREATE_TEXTURE( "*avg_luminance_texture", glState.width, glState.height, NULL, TF_SCREEN );
 
 	GL_Bind( GL_TEXTURE0, tr.avg_luminance_texture );
-	pglGenerateMipmap( GL_TEXTURE_2D );
-	pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR );
+	int w = glState.width;
+	int h = glState.height;
+	for( int i = 0; i < mipmap_count; i++ )
+	{
+		pglTexImage2D( GL_TEXTURE_2D, i, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL );
+		w /= 2;
+		h /= 2;
+		w = Q_max( w, 1 );
+		h = Q_max( h, 1 );
+	}
+	pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST );
+	pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+	pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+	pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
 	GL_Bind( GL_TEXTURE0, 0 );
 
 	// mips
@@ -75,6 +87,8 @@ static void InitAutoExposure(void)
 		pglBindFramebuffer( GL_FRAMEBUFFER_EXT, tr.avg_luminance_fbo_mip[i] );
 		pglFramebufferTexture2D( GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, RENDER_GET_PARM(PARM_TEX_TEXNUM, tr.avg_luminance_texture), i );
 		ValidateFBO();
+		pglClearColor( 0.0f, 0.0f, 0.0f, 1.0f );
+		pglClear( GL_COLOR_BUFFER_BIT );
 	}
 
 	pglBindFramebuffer( GL_FRAMEBUFFER_EXT, 0 );
@@ -89,10 +103,11 @@ static void InitAutoExposure(void)
 			exposure_storage_texture[i] = 0;
 		}
 
-		exposure_storage_texture[i] = CREATE_TEXTURE( va( "*exposure_storage%d", i ), 1, 1, NULL, TF_IMAGE | TF_ARB_16BIT );
+		exposure_storage_texture[i] = CREATE_TEXTURE( va( "*exposure_storage%d", i ), 1, 1, NULL, TF_IMAGE );
 
 		GL_Bind( GL_TEXTURE0, exposure_storage_texture[i] );
-		pglTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 1, 1, GL_RGB, GL_FLOAT, &color.x );
+		unsigned char default_exp[4] = { 204, 0, 0, 255 };
+		pglTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, default_exp );
 		GL_Bind( GL_TEXTURE0, 0 );
 
 		if( exposure_storage_fbo[i] == 0 )
@@ -174,13 +189,13 @@ static void InitSMAA( void )
 
 	if( !SMAA_AlbedoTex )
 	{
-		SMAA_AlbedoTex = CREATE_TEXTURE( "*SMAA_AlbedoTex", w, h, NULL, 0 );
+		SMAA_AlbedoTex = CREATE_TEXTURE( "*SMAA_AlbedoTex", w, h, NULL, TF_SCREEN );
 		GL_Bind( GL_TEXTURE0, SMAA_AlbedoTex );
 		pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
 		pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
 		pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
 		pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-		pglTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_FLOAT, 0 );
+		pglTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0 );
 		GL_Bind( GL_TEXTURE0, 0 );
 	}
 
@@ -192,13 +207,13 @@ static void InitSMAA( void )
 
 	if( !SMAA_EdgeTex )
 	{
-		SMAA_EdgeTex = CREATE_TEXTURE( "*SMAA_EdgeTex", w, h, NULL, 0 );
+		SMAA_EdgeTex = CREATE_TEXTURE( "*SMAA_EdgeTex", w, h, NULL, TF_SCREEN );
 		GL_Bind( GL_TEXTURE0, SMAA_EdgeTex );
 		pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
 		pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
 		pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
 		pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-		pglTexImage2D( GL_TEXTURE_2D, 0, GL_RG8, w, h, 0, GL_RGBA, GL_FLOAT, 0 );
+		pglTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0 );
 		GL_Bind( GL_TEXTURE0, 0 );
 	}
 
@@ -210,13 +225,13 @@ static void InitSMAA( void )
 
 	if( !SMAA_BlendTex )
 	{
-		SMAA_BlendTex = CREATE_TEXTURE( "*SMAA_BlendTex", w, h, NULL, 0 );
+		SMAA_BlendTex = CREATE_TEXTURE( "*SMAA_BlendTex", w, h, NULL, TF_SCREEN );
 		GL_Bind( GL_TEXTURE0, SMAA_BlendTex );
 		pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
 		pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
 		pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
 		pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
-		pglTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_FLOAT, 0 );
+		pglTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0 );
 		GL_Bind( GL_TEXTURE0, 0 );
 	}
 
@@ -242,7 +257,15 @@ static void InitBloom( void )
 		tr.screen_fbo_texture_color = CREATE_TEXTURE( "*screen_temp_fbo_texture_color", glState.width, glState.height, NULL, TF_COLORBUFFER ); // was TF_HAS_ALPHA | TF_ARB_16BIT | TF_CLAMP | TF_ARB_FLOAT
 
 	GL_Bind( GL_TEXTURE0, tr.screen_fbo_texture_color );
-	pglGenerateMipmap( GL_TEXTURE_2D );
+	int w = glState.width;
+	int h = glState.height;
+	const int bloom_mip_count = 1 + (int)floor( log2( Q_max( glState.width, glState.height ) ) );
+	for( int i = 0; i < bloom_mip_count; i++ )
+	{
+		pglTexImage2D( GL_TEXTURE_2D, i, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL );
+		w = Q_max( 1, w / 2 );
+		h = Q_max( 1, h / 2 );
+	}
 	pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
 	pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
 	pglTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
@@ -345,15 +368,6 @@ void RenderSunShafts( void )
 		return;
 
 	if( !CheckShader( glsl.genSunShafts ) || !CheckShader( glsl.drawSunShafts ) || !CheckShader( glsl.blurShader ) )
-		return;
-
-	// half-D: sun shafts copy the full screen (color AND depth) back into
-	// textures every frame. Under GLES2 (via gl4es) the color copy becomes a
-	// full-screen CPU readback and the depth copy just fails (GLES2 cannot
-	// read depth back), so the effect was simultaneously the biggest
-	// per-frame stall and visually broken (garbage depth mask). GL 3.0+
-	// contexts handle both copies fine (v0.1.8 device test: 0-1 fps).
-	if( glConfig.version < 3.0f )
 		return;
 
 	if( !(world->features & WORLD_HAS_SKYBOX) )
@@ -544,11 +558,6 @@ void RenderSunShafts( void )
 
 void MotionBlur(void)
 {
-	// half-D: the shader may be missing (GLSL 130-only sources fail on
-	// ES 1.00) - skip the effect instead of dereferencing a NULL program
-	if( !CheckShader( glsl.MotionBlur ))
-		return;
-
 	static float drunk_amount = 0.0f;
 	float Accum;
 
@@ -750,11 +759,6 @@ void RenderGaussBlur( float blur1, float blur2 )
 
 void HorizontalBlur( void )
 {
-	// half-D: the shader may be missing (GLSL 130-only sources fail on
-	// ES 1.00) - skip the effect instead of dereferencing a NULL program
-	if( !CheckShader( glsl.HorizontalBlur ))
-		return;
-
 	static float Accum = 0.0f;
 
 	if( Accum == 0.0f ) // make sure it's faded out
@@ -844,11 +848,6 @@ void HorizontalBlur( void )
 
 void ScreenWater(void)
 {
-	// half-D: the shader may be missing (GLSL 130-only sources fail on
-	// ES 1.00) - skip the effect instead of dereferencing a NULL program
-	if( !CheckShader( glsl.ScreenWater ))
-		return;
-
 	float Speed = gEngfuncs.GetLocalPlayer()->curstate.vuser1.x;
 
 	// special condition...
@@ -884,11 +883,6 @@ void ScreenWater(void)
 
 void Glitch( void )
 {
-	// half-D: the shader may be missing (GLSL 130-only sources fail on
-	// ES 1.00) - skip the effect instead of dereferencing a NULL program
-	if( !CheckShader( glsl.Glitch ))
-		return;
-
 	if( gHUD.GlitchAmount > 0.0f && tr.time > gHUD.GlitchHoldTime )
 		gHUD.GlitchAmount = CL_UTIL_Approach( 0.0f, gHUD.GlitchAmount, g_fFrametime );
 	
@@ -916,11 +910,6 @@ void Glitch( void )
 
 void Monochrome( void )
 {
-	// half-D: the shader may be missing (GLSL 130-only sources fail on
-	// ES 1.00) - skip the effect instead of dereferencing a NULL program
-	if( !CheckShader( glsl.Monochrome ))
-		return;
-
 	const float MonochromeState = gEngfuncs.GetLocalPlayer()->curstate.vuser1.z;
 
 	float CurrentMonochrome = 0.0f;
@@ -1086,14 +1075,6 @@ void Bloom( void )
 	if( !CVAR_TO_BOOL( r_bloom ) )
 		return;
 
-	// half-D: bloom builds a screen-sized (NPOT) texture with a mip chain
-	// and mip-level FBO attachments. GLES2 cannot generate mips for NPOT
-	// textures, so the levels stay unallocated and gl4es's software-mipmap
-	// upload path crashes the Mali driver (v0.1.7 device crash). GL 3.0+
-	// contexts handle it fine.
-	if( glConfig.version < 3.0f )
-		return;
-
 	if( IsBuildingCubemaps() ) // no bloom in cubemaps
 		return;
 
@@ -1164,7 +1145,7 @@ int RenderExposureStorage(void)
 	static int Index = 0;
 	const int sourceIndex = Index % 2;
 	const int destIndex = (Index + 1) % 2;
-	const int mipmap_count = 1 + floor( log2( Q_max( glState.width, glState.height ) ) );
+	const int mipmap_count = Q_min( 1 + (int)floor( log2( Q_max( glState.width, glState.height ) ) ), 16 );
 
 	GL_BindShader( glsl.GenExposure );
 	ASSERT( RI->currentshader != NULL );
@@ -1194,23 +1175,22 @@ void ToneMap(void)
 	if( !CVAR_TO_BOOL( gl_exposure ) )
 		return;
 
-	// half-D: auto exposure uses the same screen-sized NPOT mip chain as
-	// bloom - GLES2-unsafe for exactly the same reasons (see Bloom)
-	if( glConfig.version < 3.0f )
-		return;
-
 	if( IsBuildingCubemaps() ) // no exposure change in cubemaps
 		return;
 
 	if( R_FullBright() || r_lightmap->value )
 		return;
 
-	const int mipmap_count = 1 + floor( log2( Q_max( glState.width, glState.height ) ) );
+	if( !tr.avg_luminance_texture )
+		InitAutoExposure();
 
-	// render luminance to first mip
-	GL_Bind( GL_TEXTURE0, tr.avg_luminance_texture );
+	const int mipmap_count = Q_min( 1 + (int)floor( log2( Q_max( glState.width, glState.height ) ) ), 16 );
+
+	// capture current screen into tr.screen_color to extract luminance
+	GL_Bind( GL_TEXTURE0, tr.screen_color );
 	pglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glState.width, glState.height );
 
+	// render luminance to first mip (u_ScreenMap on unit 0 is tr.screen_color)
 	GL_BindShader( glsl.GenLuminance );
 	ASSERT( RI->currentshader != NULL );
 
@@ -1229,6 +1209,8 @@ void ToneMap(void)
 	pglUniform2fARB( RI->currentshader->u_ScreenSizeInv, 1.0f / (float)(glState.width), 1.0f / (float)(glState.height) );
 	pglUniform4fARB( RI->currentshader->u_TexCoordClamp, 0.0f, 0.0f, 1.0f, 1.0f );
 	pglUniform1fARB( RI->currentshader->u_BloomFirstPass, 0.0f );
+
+	GL_Bind( GL_TEXTURE0, tr.avg_luminance_texture );
 
 	for( int i = 1; i < mipmap_count; i++ )
 	{
@@ -1250,10 +1232,6 @@ void ToneMap(void)
 	GL_CleanUpTextureUnits( 0 );
 	pglViewport( 0, 0, glState.width, glState.height );
 	pglBindFramebuffer( GL_FRAMEBUFFER_EXT, 0 );
-
-	// capture screen
-	GL_Bind( GL_TEXTURE0, tr.screen_color );
-	pglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, 0, 0, glState.width, glState.height );
 
 	const int ExposureTexture = RenderExposureStorage();
 
@@ -1340,9 +1318,13 @@ void SMAA( void )
 	if( gl_smaa->value <= 0 )
 		return;
 
-	// half-D: the shader may be missing (GLSL 130-only sources fail on
-	// ES 1.00) - skip the effect instead of dereferencing a NULL program
-	if( !CheckShader( glsl.SMAAEdgeDetect ) || !CheckShader( glsl.SMAABlendWeight ) || !CheckShader( glsl.SMAANeighborBlend ))
+	if( !CheckShader( glsl.SMAAEdgeDetect ) || !CheckShader( glsl.SMAABlendWeight ) || !CheckShader( glsl.SMAANeighborBlend ) )
+		return;
+
+	if( !SMAA_AlbedoTex )
+		InitSMAA();
+
+	if( !SMAA_AlbedoTex || !SMAA_EdgeTex || !SMAA_BlendTex || !SMAA_AreaTex || !SMAA_SearchTex )
 		return;
 
 	const int w = RENDER_GET_PARM( PARM_SCREEN_WIDTH, 0 );
@@ -1438,11 +1420,6 @@ void DownScale( void )
 
 void LensFlare( void )
 {
-	// half-D: the shader may be missing (GLSL 130-only sources fail on
-	// ES 1.00) - skip the effect instead of dereferencing a NULL program
-	if( !CheckShader( glsl.LensFlare ))
-		return;
-
 	if( gl_lensflare->value <= 0 )
 		return;
 	
@@ -1549,11 +1526,6 @@ void LensFlare( void )
 
 void WaterDrops( void )
 {
-	// half-D: the shader may be missing (GLSL 130-only sources fail on
-	// ES 1.00) - skip the effect instead of dereferencing a NULL program
-	if( !CheckShader( glsl.WaterDrops ))
-		return;
-
 	// player is in car
 	if( gEngfuncs.GetLocalPlayer()->curstate.vuser1.y > 0.0f )
 		gHUD.ScreenDrips_Visible = false;
@@ -1613,11 +1585,6 @@ void WaterDrops( void )
 
 void DroneScreenShader( void )
 {
-	// half-D: the shader may be missing (GLSL 130-only sources fail on
-	// ES 1.00) - skip the effect instead of dereferencing a NULL program
-	if( !CheckShader( glsl.DroneScreen ))
-		return;
-
 	if( !(gEngfuncs.GetLocalPlayer()->curstate.effects & EF_PLAYERDRONECONTROL) )
 		return;
 

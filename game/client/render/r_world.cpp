@@ -755,13 +755,9 @@ static void Mod_LinkLeafLights( void )
 	leaf = (mworldleaf_t *)world->leafs;
 	lp = world->leaflights;
 
-	for( i = j = 0; i < world->numleafs; i++, leaf++ )
+	for( i = j = 0; i < world->numleafs && j < world->numleaflights; i++, leaf++ )
 	{
-		// half-D: guard the deref — once all leaflights are consumed
-		// (j == numleaflights) the old code kept reading lp one past
-		// the array end for every remaining leaf, which segfaults on
-		// Android (guard page after the allocation).
-		if( j < world->numleaflights && lp->leaf == leaf )
+		if( lp->leaf == leaf )
 		{
 			leaf->ambient_light = lp; // pointer to first light in the array that belong to this leaf
 
@@ -893,7 +889,10 @@ static void Mod_LoadLeafAmbientLighting( const byte *base, const dlump_t *l )
 	for( i = 0; i < count; i++, in++, out++ )
 	{
 		memcpy( &out->cube, &in->ambient, sizeof( dlightcube_t ) );
-		out->leaf = &world->leafs[in->leafnum];
+		if( in->leafnum >= 0 && in->leafnum < world->numleafs )
+			out->leaf = &world->leafs[in->leafnum];
+		else
+			out->leaf = NULL;
 		out->origin.x = in->origin[0];
 		out->origin.y = in->origin[1];
 		out->origin.z = in->origin[2];
@@ -1798,8 +1797,8 @@ static void Mod_CreateBufferObject( void )
 	pglEnableVertexAttribArrayARB( ATTR_INDEX_LIGHT_STYLES );
 
 	// don't forget to unbind them
-	pglBindVertexArray( GL_FALSE );
 	pglBindBufferARB( GL_ARRAY_BUFFER_ARB, 0 );
+	pglBindVertexArray( GL_FALSE );
 
 	world->cacheSize = world->numvertexes * sizeof( bvert_t );
 
@@ -2811,6 +2810,7 @@ void R_DrawShadowBrushList( void )
 	GL_CleanUpTextureUnits( 0 );
 	GL_BindShader( NULL );
 	pglBindBufferARB( GL_ARRAY_BUFFER_ARB, 0 );
+	pglBindVertexArray( 0 );
 	tr.num_draw_surfaces = 0;
 
 	if( R_GrassUseBufferObject() )
@@ -2818,7 +2818,6 @@ void R_DrawShadowBrushList( void )
 	else
 		R_DrawGrass();
 
-	pglBindVertexArray( 0 );
 	GL_BindShader( NULL );
 	pglBindBufferARB( GL_ARRAY_BUFFER_ARB, 0 );
 
@@ -2898,17 +2897,14 @@ void R_DrawBrushList( void )
 		const int iTexnum = es->gl_texturenum;
 		const material_t &MT = (tex->anim_total > 0) ? tr.materials[tex->gl_texturenum] : tr.materials[iTexnum];
 
+		GLenum next_cull = GL_FRONT;
 		if( tr.viewparams.waterlevel >= 3 && RP_NORMALPASS() && FBitSet( s->flags, SURF_WATER ) )
-			GL_Cull( GL_BACK );
+			next_cull = GL_BACK;
 		else if( es->culltype == CULL_OTHER ) // probably a twoside texture
-			GL_Cull( GL_NONE );
-		else
-			GL_Cull( GL_FRONT );
+			next_cull = GL_NONE;
 
-		if( cached_cull != glState.faceCull )
+		if( cached_cull != next_cull )
 			flush_buffer = true;
-
-		cached_cull = glState.faceCull;
 
 		if( (i == 0) || (RI->currentshader != &glsl_programs[entry->hProgram]) )
 			flush_buffer = true;
@@ -2920,9 +2916,6 @@ void R_DrawBrushList( void )
 			flush_buffer = true;
 
 		if( cached_texture != iTexnum )
-			flush_buffer = true;
-
-		if( cached_cull != glState.faceCull )
 			flush_buffer = true;
 
 		const int bLandscape = FBitSet( s->flags, SURF_LANDSCAPE ) ? 1 : 0;
@@ -2946,6 +2939,9 @@ void R_DrawBrushList( void )
 			}
 			flush_buffer = false;
 		}
+
+		GL_Cull( next_cull );
+		cached_cull = next_cull;
 
 		// begin draw the sorted list
 		if( (i == 0) || (RI->currentshader != &glsl_programs[entry->hProgram]) )
@@ -3258,6 +3254,9 @@ void R_DrawBrushList( void )
 	GL_BindShader( NULL );
 	GL_Cull( GL_FRONT );
 
+	pglBindBufferARB( GL_ARRAY_BUFFER_ARB, 0 );
+	pglBindVertexArray( 0 );
+
 	// draw grass on visible surfaces
 	if( R_GrassUseBufferObject() )
 		R_RenderGrassOnList();
@@ -3567,6 +3566,9 @@ void R_MarkLeaves( void )
 		tr.sky_camera_origin = g_vecZero;
 	}
 
+	if( r_novis->value || FBitSet( RI->params, RP_OVERVIEW ) || !worldmodel->visdata || IsBuildingCubemaps() )
+		novis = true;
+
 	if( RI->viewleaf == RI->oldviewleaf && RI->viewleaf != NULL )
 	{
 		ENGINE_SET_PVS( RI->pvsorigin, r_pvs_radius ? r_pvs_radius->value : 2.0f, RI->visbytes, FBitSet( RI->params, RP_MERGEVISIBILITY ), novis );
@@ -3584,9 +3586,6 @@ void R_MarkLeaves( void )
 
 	// cache current values
 	RI->oldviewleaf = RI->viewleaf;
-
-	if( r_novis->value || FBitSet( RI->params, RP_OVERVIEW ) || !worldmodel->visdata || IsBuildingCubemaps() )
-		novis = true;
 
 	ENGINE_SET_PVS( RI->pvsorigin, r_pvs_radius ? r_pvs_radius->value : 2.0f, RI->visbytes, FBitSet( RI->params, RP_MERGEVISIBILITY ), novis );
 	R_UpdateEngineVisibility();
@@ -3759,7 +3758,7 @@ void R_WorldMarkVisibleFaces( void )
 		if( !(leaf->efrags || leaf->nummarksurfaces) )
 			continue;
 
-		if( !bBuildingCubemaps && !CHECKVISBIT( RI->visbytes, leaf->cluster ) )
+		if( !bBuildingCubemaps && ( leaf->cluster < 0 || !CHECKVISBIT( RI->visbytes, leaf->cluster )))
 			continue;
 		
 		if( bNormalPass && leaf->hasSky )

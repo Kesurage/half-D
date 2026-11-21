@@ -39,7 +39,7 @@ void main( void )
     v = ( c * 0.1 ) / iResolution,
     n = noise( v * 200.0 ); // Displacement
     
-    vec4 InColor = texture( u_ColorMap, u, 2.5 );
+    vec4 InColor = texture2D( u_ColorMap, u, 2.5 );
     vec4 f = InColor;
     
     // Loop through the different inverse sizes of drops
@@ -66,7 +66,7 @@ void main( void )
             // fragColor = vec4( v * 0.5 + 0.5, 1.0 );  // show normals
             
             // Poor man's refraction (no visual need to do more)
-            f = texture( u_ColorMap, u - v.xy * 0.3 );
+            f = texture2D( u_ColorMap, u - v.xy * 0.3 );
         }
     }
 

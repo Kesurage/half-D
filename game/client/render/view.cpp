@@ -117,7 +117,6 @@ cvar_t *gl_mobile_quality;
 cvar_t *r_grass_fade_start;
 cvar_t *r_grass_fade_dist;
 cvar_t *r_show_renderpass;
-cvar_t *gl_diag;
 cvar_t *r_show_light_scissors;
 cvar_t *r_show_normals;
 cvar_t *r_show_lightprobes;
@@ -191,7 +190,6 @@ cvar_t *r_decals_ext;
 cvar_t *gl_fsr;
 cvar_t *fps_max;
 cvar_t *gl_texture_nearest;
-cvar_t *cl_gunsmoke;
 
 cvar_t	v_iyaw_cycle = { "v_iyaw_cycle", "2", 0, 2 };
 cvar_t	v_iroll_cycle = { "v_iroll_cycle", "0.5", 0, 0.5 };
@@ -410,7 +408,6 @@ void V_Init( void )
 	r_drawsprites = CVAR_REGISTER( "r_drawsprites", "1", FCVAR_CHEAT );
 	r_sprites_batch = CVAR_REGISTER( "r_sprites_batch", "1", FCVAR_ARCHIVE );
 	r_show_renderpass = CVAR_REGISTER( "r_show_renderpass", "0", 0 );
-	gl_diag = CVAR_REGISTER( "gl_diag", "1", FCVAR_ARCHIVE ); // half-D: perf heartbeat + shader compile trace in engine.log
 	r_show_light_scissors = CVAR_REGISTER( "r_show_light_scissors", "0", 0 );
 	r_show_normals = CVAR_REGISTER( "r_show_normals", "0", 0 );
 	r_show_lightprobes = CVAR_REGISTER( "r_show_lightprobes", "0", 0 );
@@ -457,8 +454,6 @@ void V_Init( void )
 	room_type_auto = CVAR_REGISTER( "room_type_auto", "0", FCVAR_ARCHIVE );
 	r_decals_ext = CVAR_REGISTER( "r_decals_ext", "1", FCVAR_ARCHIVE );
 	gl_fsr = CVAR_REGISTER( "gl_fsr", "0", FCVAR_ARCHIVE );
-	cl_gunsmoke = CVAR_REGISTER( "cl_gunsmoke", "1", FCVAR_ARCHIVE );
-	gl_mobile_quality = CVAR_REGISTER( "gl_mobile_quality", "1", FCVAR_ARCHIVE );
 
 	// cubemaps
 	gEngfuncs.pfnAddCommand( "buildcubemaps", CL_BuildCubemaps_f );
@@ -471,6 +466,7 @@ void V_Init( void )
 	ui_crosshair_setup = CVAR_REGISTER( "ui_crosshair_setup", "0", FCVAR_UNLOGGED );
 	ui_videooptions_active = CVAR_REGISTER( "ui_videooptions_active", "0", FCVAR_UNLOGGED );
 	ui_forcenoblur = CVAR_REGISTER( "ui_forcenoblur", "0", FCVAR_UNLOGGED );
+	gl_mobile_quality = CVAR_REGISTER( "gl_mobile_quality", "1", FCVAR_ARCHIVE );
 	cl_background = CVAR_GET_POINTER( "cl_background" );
 }
 

@@ -193,8 +193,6 @@ void CDeagle::PrimaryAttack()
 
 	MakeWeaponShake( m_pPlayer, WEAPON_DEAGLE, 0 );
 
-	AddGunSmoke( m_pPlayer, 90 );
-
 	// diffusion - added shell for deagle
 	Vector	vecShellVelocity = m_pPlayer->GetAbsVelocity() 
 							 + gpGlobals->v_right * RANDOM_FLOAT(70,90) 

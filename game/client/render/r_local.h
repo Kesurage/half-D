@@ -80,14 +80,7 @@ GNU General Public License for more details.
 
 #define TF_LIGHTMAP		(TF_NOMIPMAP|/*TF_CLAMP|*/TF_ATLAS_PAGE/*|TF_HAS_ALPHA*/)
 #define TF_DELUXMAP		(/*TF_CLAMP|*/TF_NOMIPMAP|TF_NORMALMAP|TF_ATLAS_PAGE)
-// half-D: TF_HAS_ALPHA forces the RGBA format for screen textures.
-// gl4es only forwards glCopyTexSubImage2D to the GLES driver when the
-// bound texture is RGBA/UNSIGNED_BYTE; with the old RGB format every
-// full-screen copy in the post chain (motion blur, screen water,
-// monochrome, sharpen, sun shafts, SSAO...) fell back to a 4 MB CPU
-// readback PER FRAME PER EFFECT (~4 fps on Mali-G57). RGBA makes all of
-// them native GPU copies; the effects stay enabled and become cheap.
-#define TF_SCREEN		(TF_NOMIPMAP|TF_CLAMP|TF_HAS_ALPHA)
+#define TF_SCREEN		(TF_NOMIPMAP|TF_CLAMP)
 #define TF_SPOTLIGHT	(TF_BORDER)
 #define TF_SHADOW		(TF_CLAMP|TF_DEPTHMAP)
 #define TF_SHADOW_CUBEMAP	(TF_NOMIPMAP|TF_CLAMP|TF_CUBEMAP|TF_DEPTHMAP|TF_LUMINANCE)
@@ -576,7 +569,6 @@ extern model_t		*worldmodel;
 extern ref_instance_t	*RI;
 extern ref_globals_t	tr;
 extern ref_stats_t		r_stats;
-extern int		r_negcacheHits; // half-D: shader permutations skipped via the failed-program cache
 extern cl_entity_t		*v_intermission_spot;
 extern plight_t		cl_plights[MAX_PLIGHTS];
 #define r_numEntities	(tr.num_solid_entities + tr.num_trans_entities - r_stats.c_client_ents)

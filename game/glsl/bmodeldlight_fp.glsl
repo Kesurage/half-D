@@ -28,7 +28,14 @@ GNU General Public License for more details.
 #endif
 #include "alpha2coverage.h"
 
-#if defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
+#if defined( GL_ES ) && !defined( GL_EXT_texture_array )
+#ifndef sampler2DArray
+#define sampler2DArray sampler2D
+#define texture2DArray( s, c ) texture2D( (s), (c).xy )
+#endif
+#endif
+
+#if defined( BMODEL_MULTI_LAYERS )
 uniform sampler2DArray	u_ColorMap;
 uniform sampler2DArray	u_NormalMap;
 uniform float   	u_DynLightBrightness[TERRAIN_NUM_LAYERS];
@@ -104,7 +111,7 @@ void main( void )
 	float shadow = 1.0;
 
 	// compute the masks for terrain
-#if defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
+#if defined( BMODEL_MULTI_LAYERS )
 	vec4 mask0, mask1, mask2, mask3;
 	TerrainReadMask( var_TexGlobal, mask0, mask1, mask2, mask3 );
 #endif
@@ -143,7 +150,7 @@ void main( void )
 #endif
 
 	// get diffuse texture and check alpha
-#if defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
+#if defined( BMODEL_MULTI_LAYERS )
 	diffuse = TerrainApplyDiffuse( u_ColorMap, var_TexDiffuse, mask0, mask1, mask2, mask3 );
 #else
 	#if defined( BMODEL_WATER )
@@ -172,7 +179,7 @@ void main( void )
 	// rotate water normal to worldpsace
 	vec3 WaterNormal = normalmap2D( u_NormalMap, var_TexDiffuse );
 	N = WaterNormal;
-#elif defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
+#elif defined( BMODEL_MULTI_LAYERS )
 	#if defined( BMODEL_BUMP )
 		N = TerrainApplyNormal( u_NormalMap, var_TexDiffuse, mask0, mask1, mask2, mask3 );
 	#else
@@ -194,17 +201,25 @@ void main( void )
 	float EmbossScale = 0.0;
 
 	// compute the material defines
-#if defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
+#if defined( BMODEL_MULTI_LAYERS )
 	float InitGlossScale[TERRAIN_NUM_LAYERS];
 	float InitGlossSmoothness[TERRAIN_NUM_LAYERS];
 	float InitEmbossScale[TERRAIN_NUM_LAYERS];
-	#if defined( BMODEL_EMBOSS )
-	InitEmbossScale = u_EmbossScale;
-	#endif
-	#if defined( BMODEL_SPECULAR )
-	InitGlossScale = u_GlossScale; 
-	InitGlossSmoothness = u_GlossSmoothness;
-	#endif
+	for( int i = 0; i < TERRAIN_NUM_LAYERS; ++i )
+	{
+		#if defined( BMODEL_EMBOSS )
+		InitEmbossScale[i] = u_EmbossScale[i];
+		#else
+		InitEmbossScale[i] = 0.0;
+		#endif
+		#if defined( BMODEL_SPECULAR )
+		InitGlossScale[i] = u_GlossScale[i];
+		InitGlossSmoothness[i] = u_GlossSmoothness[i];
+		#else
+		InitGlossScale[i] = 0.0;
+		InitGlossSmoothness[i] = 0.0;
+		#endif
+	}
 	vec3 MaterialDefines = TerrainCalcMaterialDefines( InitGlossScale, InitGlossSmoothness, InitEmbossScale, mask0, mask1, mask2, mask3 );
 	#if defined( BMODEL_SPECULAR )
 	GlossScale = MaterialDefines.x; 
@@ -226,7 +241,7 @@ void main( void )
 #endif
 
 	// compute specular and emboss term
-#if defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
+#if defined( BMODEL_MULTI_LAYERS )
 	#if defined( BMODEL_SPECULAR )
 		glossmap = DiffuseToGlossmapTerrain( u_ColorMap, var_TexDiffuse, mask0, mask1, mask2, mask3 );
 	#endif
@@ -268,7 +283,7 @@ void main( void )
 	alpha *= 0.015; // magic as well...
 
 	float WaterAbsorbFactor = 1.0;
-	const float u_zFar = -4096.0; // for consistency // half-D: int literal is a type error on strict GLSL ES 1.00 (Mali S0001)
+	const float u_zFar = -4096.0; // for consistency
 
 	float fOwnDepth = gl_FragCoord.z;
 	fOwnDepth = linearizeDepth( u_zFar, fOwnDepth );

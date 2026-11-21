@@ -1046,7 +1046,7 @@ void FuncRotatingClient( cl_entity_t *e )
 		vecR.z = AngleNormalize( vecR.z );
 	}
 
-	e->curstate.angles = e->baseline.angles + vecR;
+	e->curstate.angles = vecR;
 }
 
 /*
@@ -1140,7 +1140,7 @@ void HUD_ProcessPlayerState( struct entity_state_s* dst, const struct entity_sta
 		g_iUser2 = src->iuser2;
 		g_iUser3 = src->iuser3;
 
-#if XASH_64BIT && XASH_WIN32
+#if (XASH_64BIT && XASH_WIN32) || defined(__ANDROID__)
 		discord_integration::set_spectating( g_iUser1 > 0 );
 #endif
 	}

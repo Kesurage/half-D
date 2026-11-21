@@ -14,7 +14,6 @@ GNU General Public License for more details.
 */
 
 #include "hud.h"
-#include <chrono>
 #include "utils.h"
 #include "const.h"
 #include "r_local.h"
@@ -35,16 +34,6 @@ static int compiled_failed_total = 0;
 
 #define SHADERS_HASH_SIZE	(MAX_GLSL_PROGRAMS >> 2)
 #define MAX_FILE_STACK	64
-
-// half-D: negative cache for failed GLSL permutations. Upstream wipes a
-// failed program without registering it in the hash, so every runtime
-// request for the same broken permutation re-ran a full driver compile
-// (100-300 ms each on the Mali GLES2 path — the mid-game fps dips in the
-// v0.2.0 device log). Remember the failure and fail fast instead.
-#define MAX_FAILED_PERMUTATIONS 96
-static char	r_failedPermutations[MAX_FAILED_PERMUTATIONS][MAX_OPTIONS_LENGTH + 64];
-static int	r_numFailedPermutations = 0;
-int		r_negcacheHits = 0;
 
 static char	filenames_stack[MAX_FILE_STACK][256];
 glsl_program_t	glsl_programs[MAX_GLSL_PROGRAMS];
@@ -109,6 +98,9 @@ static bool GL_IsSourceNewerThanCache( const char *vpname, const char *fpname, c
 
 	Q_snprintf( vp_path, sizeof( vp_path ), "glsl/%s_vp.glsl", vpname );
 	Q_snprintf( fp_path, sizeof( fp_path ), "glsl/%s_fp.glsl", fpname );
+
+	for( int i = 0; vp_path[i]; i++ ) vp_path[i] = tolower( vp_path[i] );
+	for( int i = 0; fp_path[i]; i++ ) fp_path[i] = tolower( fp_path[i] );
 
 	int retval = 0;
 
@@ -235,9 +227,15 @@ static bool GL_LoadSource( const char *filename, CVirtualFS *file )
 	char *source = (char *)gEngfuncs.COM_LoadFile((char *)filename, 5, &size );
 	if( !source )
 	{
-		// half-D: unconditional — ALERT() is silenced without -dev, which
-		// made missing shader files invisible in engine.log
-		gEngfuncs.Con_Printf( "^1couldn't load %s^7\n", filename );
+		char lowername[256];
+		Q_strncpy( lowername, filename, sizeof( lowername ) );
+		for( int i = 0; lowername[i]; i++ )
+			lowername[i] = tolower( lowername[i] );
+		source = (char *)gEngfuncs.COM_LoadFile( lowername, 5, &size );
+	}
+	if( !source )
+	{
+		ALERT( at_error, "couldn't load %s\n", filename );
 		return false;
 	}
 
@@ -299,50 +297,25 @@ static bool GL_ProcessShader( const char *filename, CVirtualFS *out, bool compat
 		return false;
 
 	// add internal defines
-	// half-D: pick the GLSL version the current context actually supports.
-	// Upstream always emits #version 130, which cannot compile on GL 2.x
-	// contexts — on Android gl4es reports GL 2.1, so every shader failed and
-	// the first shader init assert-fatal'd the game. All shader sources are
-	// old-school GLSL 1.10 style (varying/gl_FragColor/texture2D), so 120 is
-	// enough for them there.
-	if( glConfig.version >= 3.0f )
-		out->Printf( "#version 130\n" );
-	else if( glConfig.version >= 2.0f )
-		out->Printf( "#version 120\n" );
-	else out->Printf( "#version 110\n" );
-
-	// half-D: GLSL < 1.30 has no generic texture() — map it to texture2D
-	// (all call sites are sampler2D, waterdrops also uses the bias argument
-	// which texture2D accepts in fragment shaders)
-	if( glConfig.version < 3.0f )
-	{
-		out->Printf( "#define texture texture2D\n" );
-		// half-D: round() and textureLodOffset() are GLSL 1.30+; gl4es passes
-		// them through and Mali rejects them (SMAABlendWeight/Glitch failed
-		// on device). floor(x+0.5) covers every round() overload used; the
-		// offset is added to the coordinate manually (gl4es itself translates
-		// texture2DLod in fragment shaders — Bloom/BlurMip compile on device).
-		out->Printf( "#define round(x) floor((x)+0.5)\n" );
-		out->Printf( "#define textureLodOffset(s,u,l,o) texture2DLod(s,(u)+vec2(o),l)\n" );
-		// generic textureLod() is also GLSL 1.30+ (glitch_fp uses it)
-		out->Printf( "#define textureLod(s,u,l) texture2DLod(s,u,l)\n" );
-	}
-
+	out->Printf( "#version 130\n" );
+	out->Printf( "#ifdef GL_ES\n" );
+	out->Printf( "precision highp float;\n" );
+	out->Printf( "precision highp int;\n" );
+	out->Printf( "precision highp sampler2D;\n" );
+	out->Printf( "precision highp samplerCube;\n" );
+	out->Printf( "precision highp sampler2DShadow;\n" );
+	out->Printf( "#endif\n" );
 	out->Printf( "#ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif\n" );
 	out->Printf( "#ifndef M_PI2\n#define M_PI2 6.28318530717958647692\n#endif\n" );
-	// half-D: sampler2DArray exists only in GLSL 1.30+/ES 3.00 — on GL 2.1
-	// contexts (gl4es on Android reports 2.1) the grammar has no such type,
-	// so offering texture arrays made the multi-layer terrain permutations
-	// uncompilable (part of the invisible-ground bug). 2.1 falls back to
-	// the single-texture terrain path.
-	if( GL_Support( R_EXT_GPU_SHADER4 ) && glConfig.version >= 3.0f )
+	out->Printf( "#ifndef round\n#define round( x ) floor( (x) + 0.5 )\n#endif\n" );
+	if( GL_Support( R_EXT_GPU_SHADER4 ))
 	{
 		out->Printf( "#extension GL_EXT_gpu_shader4 : require\n" ); // support bitwise ops
 		out->Printf( "#define GLSL_gpu_shader4\n" );
 		if( GL_Support( R_TEXTURE_ARRAY_EXT ))
 			out->Printf( "#define GLSL_ALLOW_TEXTURE_ARRAY\n" );
 	}
-	else if( GL_Support( R_TEXTURE_ARRAY_EXT ) && glConfig.version >= 3.0f )
+	else if( GL_Support( R_TEXTURE_ARRAY_EXT ))
 	{
 	//	out->Printf( "#extension GL_EXT_texture_array : require\n" ); // support texture arrays
 		out->Printf( "#define GLSL_ALLOW_TEXTURE_ARRAY\n" );
@@ -351,10 +324,10 @@ static bool GL_ProcessShader( const char *filename, CVirtualFS *out, bool compat
 
 	// user may override this constants
 	// half-D: permutation defines may carry their own MAXSTUDIOBONES for
-	// uniform-economy bone counts — emitting the default here as well made
-	// every such permutation a macro redefinition, which strict ES 1.00
-	// compilers reject (the "invisible characters" bug: all 373 studio
-	// permutations failed on Mali)
+	// uniform-economy bone counts — emitting the default here as well makes
+	// every such permutation a macro redefinition with a different
+	// substitution, which strict compilers reject. Skip when the
+	// permutation defines it.
 	if( defines == NULL || Q_strstr( defines, "MAXSTUDIOBONES" ) == NULL )
 		out->Printf( "#ifndef MAXSTUDIOBONES\n#define MAXSTUDIOBONES %i\n#endif\n", glConfig.max_skinning_bones );
 	out->Printf( "#ifndef MAX_LIGHTSTYLES\n#define MAX_LIGHTSTYLES %i\n#endif\n", MAX_LIGHTSTYLES );
@@ -388,6 +361,9 @@ static void GL_LoadGPUShader( glsl_program_t *shader, const char *name, GLenum s
 		return;
 	}
 
+	for( int i = 0; filename[i]; i++ )
+		filename[i] = tolower( filename[i] );
+
 	// load includes, add some directives
 	if( !GL_ProcessShader( filename, &source, compatible, defines ) )
 		return;
@@ -407,11 +383,9 @@ static void GL_LoadGPUShader( glsl_program_t *shader, const char *name, GLenum s
 
 	if( !compiled )
 	{
-		// half-D: print unconditionally — ALERT()/Msg() are gated by developer
-		// level, which made shader failures invisible in engine.log without -dev
-		gEngfuncs.Con_Printf( "%s", GL_PrintInfoLog( object ));
-		gEngfuncs.Con_Printf( "Shader options:%s\n", GL_PretifyListOptions( defines ));
-		gEngfuncs.Con_Printf( "^1Couldn't compile %s^7\n", filename );
+		if( developer_level ) Msg( "%s", GL_PrintInfoLog( object ));
+		if( developer_level ) Msg( "Shader options:%s\n", GL_PretifyListOptions( defines ));
+		ALERT( at_error, "Couldn't compile %s\n", filename );
 		pglDeleteObjectARB( object );
 		return;
 	}
@@ -436,7 +410,7 @@ static void GL_LinkProgram( glsl_program_t *shader )
 	pglLinkProgramARB( shader->handle );
 
 	pglGetObjectParameterivARB( shader->handle, GL_OBJECT_LINK_STATUS_ARB, &linked );
-	if( !linked ) gEngfuncs.Con_Printf( "^1%s shader failed to link^7\n%s", shader->name, GL_PrintInfoLog( shader->handle ));
+	if( !linked ) ALERT( at_error, "%s\n%s shader failed to link\n", GL_PrintInfoLog( shader->handle ), shader->name );
 	else shader->status |= SHADER_PROGRAM_LINKED;
 }
 
@@ -623,19 +597,6 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 	find = va( "%s %s", glname, defines );
 	hash = COM_HashKey( find, SHADERS_HASH_SIZE );
 
-	// half-D: fail fast if this exact permutation already failed this session
-	if( r_numFailedPermutations > 0 )
-	{
-		for( int j = 0; j < r_numFailedPermutations; j++ )
-		{
-			if( !Q_strcmp( r_failedPermutations[j], find ))
-			{
-				r_negcacheHits++;
-				return NULL;
-			}
-		}
-	}
-
 	// check for coexist
 	for( prog = glsl_programsHashTable[hash]; prog != NULL; prog = prog->nextHash )
 	{
@@ -738,9 +699,6 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 	}
 
 	// Fallback: compile from source
-	// half-D: time the compile for the diagnostics heartbeat
-	std::chrono::steady_clock::time_point compileT0 = std::chrono::steady_clock::now();
-
 	if( vpname )
 		GL_LoadGPUShader( shader, vpname, GL_VERTEX_SHADER_ARB, false, defines );
 
@@ -767,15 +725,6 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 
 	if( !FBitSet( shader->status, SHADER_PROGRAM_LINKED ) || !FBitSet( shader->status, SHADER_VERTEX_COMPILED ) || !FBitSet( shader->status, SHADER_FRAGMENT_COMPILED ) )
 	{
-		// half-D: unconditional — ALERT() is silenced without -dev, so
-		// shader compile/link failures never showed up in engine.log
-		float compileMs = std::chrono::duration<float>( std::chrono::steady_clock::now() - compileT0 ).count() * 1000.0f;
-		gEngfuncs.Con_Printf( "^1shader '%s' [%s] failed to compile/link^7 after %.1f ms — caching as failed, will not retry this session\n",
-			glname, GL_PretifyListOptions( defines ), compileMs );
-
-		if( r_numFailedPermutations < MAX_FAILED_PERMUTATIONS )
-			Q_strncpy( r_failedPermutations[r_numFailedPermutations++], find, MAX_OPTIONS_LENGTH + 64 );
-
 		if( shader->handle ) pglDeleteObjectARB( shader->handle );
 		memset( shader, 0, sizeof( *shader ) );
 		if( i == num_glsl_programs - 1 ) num_glsl_programs--;
@@ -819,15 +768,6 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 
 			Mem_Free( buffer );
 		}
-	}
-
-	// half-D: compile trace — one line per program so device logs show
-	// exactly which permutations built and what they cost
-	if( CVAR_TO_BOOL( gl_diag ))
-	{
-		float compileMs = std::chrono::duration<float>( std::chrono::steady_clock::now() - compileT0 ).count() * 1000.0f;
-		gEngfuncs.Con_Printf( "shader '%s' [%s] compiled+linked in %.1f ms\n",
-			glname, GL_PretifyListOptions( defines ), compileMs );
 	}
 
 	// add to hash table
@@ -3173,123 +3113,123 @@ void GL_InitGPUShaders( void )
 
 	// prepare sunshafts
 	glsl.genSunShafts = shader = GL_InitGPUShader( "GenSunShafts", "generic", "genshafts" );
-	if( shader ) 	GL_InitGenShaftsUniforms( shader );
+	GL_InitGenShaftsUniforms( shader );
 
 	// render sunshafts
 	glsl.drawSunShafts = shader = GL_InitGPUShader( "DrawSunShafts", "generic", "drawshafts" );
-	if( shader ) 	GL_InitDrawShaftsUniforms( shader );
+	GL_InitDrawShaftsUniforms( shader );
 
 	// prepare SSAO
 	glsl.genSSAO = shader = GL_InitGPUShader( "GenSSAO", "generic", "genssao" );
-	if( shader ) 	GL_InitGenSSAOUniforms( shader );
+	GL_InitGenSSAOUniforms( shader );
 
 	// prepare HBAO
 	glsl.genHBAO = shader = GL_InitGPUShader( "GenHBAO", "generic", "genhbao" );
-	if( shader ) 	GL_InitGenHBAOUniforms( shader );
+	GL_InitGenHBAOUniforms( shader );
 
 	// render SSAO
 	glsl.drawSSAO = shader = GL_InitGPUShader( "DrawSSAO", "generic", "drawssao" );
-	if( shader ) 	GL_InitDrawSSAOUniforms( shader );
+	GL_InitDrawSSAOUniforms( shader );
 
 	// motion blur
 	glsl.MotionBlur = shader = GL_InitGPUShader( "MotionBlur", "generic", "motionblur" );
-	if( shader ) 	GL_InitMotionBlurUniforms( shader );
+	GL_InitMotionBlurUniforms( shader );
 
 	// horizontal blur
 	glsl.HorizontalBlur = shader = GL_InitGPUShader( "HorizontalBlur", "generic", "horizontalblur" );
-	if( shader ) 	GL_InitHorizontalBlurUniforms( shader );
+	GL_InitHorizontalBlurUniforms( shader );
 
 	// monochrome
 	glsl.Monochrome = shader = GL_InitGPUShader( "Monochrome", "generic", "monochrome" );
-	if( shader ) 	GL_InitMonochromeUniforms( shader );
+	GL_InitMonochromeUniforms( shader );
 
 	// various screen effects - sharpen, saturation...
 	glsl.Enhance = shader = GL_InitGPUShader( "Enhance", "generic", "enhance" );
-	if( shader ) 	GL_InitEnhanceUniforms( shader );
+	GL_InitEnhanceUniforms( shader );
 
 	glsl.FSR_easu = shader = GL_InitGPUShader( "FSR_easu", "generic", "fsr_easu" );
-	if( shader ) 	GL_InitFSRUniforms( shader, true );
+	GL_InitFSRUniforms( shader, true );
 	glsl.FSR_rcas = shader = GL_InitGPUShader( "FSR_rcas", "generic", "fsr_rcas" );
-	if( shader ) 	GL_InitFSRUniforms( shader, false );
+	GL_InitFSRUniforms( shader, false );
 
 	glsl.SMAAEdgeDetect = shader = GL_InitGPUShader( "SMAAEdgeDetect", "smaaedgedetect", "smaaedgedetect" );
-	if( shader ) 	GL_InitSMAAEdgeDetectUniforms( shader );
+	GL_InitSMAAEdgeDetectUniforms( shader );
 	glsl.SMAABlendWeight = shader = GL_InitGPUShader( "SMAABlendWeight", "smaablendweight", "smaablendweight" );
-	if( shader ) 	GL_InitSMAABlendWeightUniforms( shader );
+	GL_InitSMAABlendWeightUniforms( shader );
 	glsl.SMAANeighborBlend = shader = GL_InitGPUShader( "SMAANeighborBlend", "smaaneighborblend", "smaaneighborblend" );
-	if( shader ) 	GL_InitSMAANeighborBlendUniforms( shader );
+	GL_InitSMAANeighborBlendUniforms( shader );
 
 	// screen water
 	glsl.ScreenWater = shader = GL_InitGPUShader( "ScreenWater", "generic", "screenwater" );
-	if( shader ) 	GL_InitScreenWaterUniforms( shader );
+	GL_InitScreenWaterUniforms( shader );
 
 	// glitch effect
 	glsl.Glitch = shader = GL_InitGPUShader( "Glitch", "generic", "glitch" );
-	if( shader ) 	GL_InitGlitchUniforms( shader );
+	GL_InitGlitchUniforms( shader );
 
 	// drone screen effect
 	glsl.DroneScreen = shader = GL_InitGPUShader( "DroneScreen", "generic", "dronescreen" );
-	if( shader ) 	GL_InitDroneScreenUniforms( shader );
+	GL_InitDroneScreenUniforms( shader );
 
 	// heat distortion effect
 	glsl.HeatDistortion = shader = GL_InitGPUShader( "HeatDistortion", "generic", "heat" );
-	if( shader ) 	GL_InitHeatDistortionUniforms( shader );
+	GL_InitHeatDistortionUniforms( shader );
 
 	// lens flare
 	glsl.LensFlare = shader = GL_InitGPUShader( "LensFlare", "generic", "lensflare" );
-	if( shader ) 	GL_InitLensFlareUniforms( shader );
+	GL_InitLensFlareUniforms( shader );
 
 	// water drops on screen
 	glsl.WaterDrops = shader = GL_InitGPUShader( "WaterDrops", "generic", "waterdrops" );
-	if( shader ) 	GL_InitWaterDropsUniforms( shader );
+	GL_InitWaterDropsUniforms( shader );
 
 	// tonemap
 	glsl.ToneMap = shader = GL_InitGPUShader( "ToneMap", "generic", "tonemap" );
-	if( shader ) 	GL_InitTonemapUniforms( shader );
+	GL_InitTonemapUniforms( shader );
 
 	glsl.GenExposure = shader = GL_InitGPUShader( "GenExposure", "generic", "generate_exposure" );
-	if( shader ) 	GL_InitGenExposureUniforms( shader );
+	GL_InitGenExposureUniforms( shader );
 
 	glsl.Bloom = shader = GL_InitGPUShader( "Bloom", "generic", "bloom" );
-	if( shader ) 	GL_InitBloomUniforms( shader );
+	GL_InitBloomUniforms( shader );
 
 	glsl.BlurMip = shader = GL_InitGPUShader( "BlurMip", "generic", "blurmip" );
-	if( shader ) 	GL_InitBlurMipUniforms( shader );
+	GL_InitBlurMipUniforms( shader );
 
 	glsl.GenLuminance = shader = GL_InitGPUShader( "GenLuminance", "generic", "generate_luminance" );
-	if( shader ) 	GL_InitGenLuminanceUniforms( shader );
+	GL_InitGenLuminanceUniforms( shader );
 
 	// gaussian blur
 	glsl.blurShader = shader = GL_InitGPUShader( "GaussBlur", "generic", "gaussblur" );
-	if( shader ) 	GL_InitPostProcessUniforms( shader );
+	GL_InitPostProcessUniforms( shader );
 
 	glsl.BilateralBlur = shader = GL_InitGPUShader( "BilateralBlur", "generic", "bilateralblur" );
-	if( shader ) 	GL_InitBilateralBlurUniforms( shader );
+	GL_InitBilateralBlurUniforms( shader );
 
 	// draw sun & skybox
 	glsl.skyboxEnv = shader = GL_InitGPUShader( "SkyBoxGeneric", "generic", "skybox" );
-	if( shader ) 	GL_InitSkyBoxUniforms( shader );
+	GL_InitSkyBoxUniforms( shader );
 
 	// studio shadowing
-	glsl.studioDepthFill[0] = shader = GL_InitGPUShader( "StudioDepth", "StudioDepth", "generic", "#define NO_FOG\n" );
-	if( shader ) 	GL_InitStudioDepthFillUniforms( shader );
+	glsl.studioDepthFill[0] = shader = GL_InitGPUShader( "StudioDepth", "studiodepth", "generic", "#define NO_FOG\n" );
+	GL_InitStudioDepthFillUniforms( shader );
 
-	glsl.studioDepthFill[1] = shader = GL_InitGPUShader( "StudioDepth", "StudioDepth", "generic", "#define STUDIO_BONEWEIGHTING\n#define NO_FOG\n"  );
-	if( shader ) 	GL_InitStudioDepthFillUniforms( shader );
+	glsl.studioDepthFill[1] = shader = GL_InitGPUShader( "StudioDepth", "studiodepth", "generic", "#define STUDIO_BONEWEIGHTING\n#define NO_FOG\n"  );
+	GL_InitStudioDepthFillUniforms( shader );
 
 	// bmodel shadowing
-	glsl.bmodelDepthFill = shader = GL_InitGPUShader( "BrushDepth", "BmodelDepth", "generic", "#define NO_FOG\n" );
-	if( shader ) 	GL_InitBmodelDepthFillUniforms( shader );
+	glsl.bmodelDepthFill = shader = GL_InitGPUShader( "BrushDepth", "bmodeldepth", "generic", "#define NO_FOG\n" );
+	GL_InitBmodelDepthFillUniforms( shader );
 
 	// grass shadowing
-	glsl.grassDepthFill = shader = GL_InitGPUShader( "GrassDepth", "GrassDepth", "generic", "#define NO_FOG\n" );
-	if( shader ) 	GL_InitGrassSolidUniforms( shader );
+	glsl.grassDepthFill = shader = GL_InitGPUShader( "GrassDepth", "grassdepth", "generic", "#define NO_FOG\n" );
+	GL_InitGrassSolidUniforms( shader );
 
 	// fog processing
 	glsl.genericFog = shader = GL_InitGPUShader( "GenericFog", "generic", "generic" );
-	if( shader ) 	GL_InitGenericFogUniforms( shader );
+	GL_InitGenericFogUniforms( shader );
 	glsl.genericFogUseAlpha = shader = GL_InitGPUShader( "GenericFogUseAlpha", "generic", "generic", "#define FOG_USE_ALPHA\n" );
-	if( shader ) 	GL_InitGenericFogUniforms( shader );
+	GL_InitGenericFogUniforms( shader );
 
 	// HACKHACK: precache generic light shaders
 	pl.flags = 0;

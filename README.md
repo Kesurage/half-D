@@ -2,7 +2,7 @@
 
 **Diffusion (by Aynekko) — native Android port. A fork of [Xash3D-FWGS](https://github.com/FWGS/xash3d-fwgs) delivering a standalone, playable APK with a built-in launcher, custom touch controls, FSR1 upscaling and Mali/panvk-friendly graphics settings.**
 
-> Status: **M1 device-test round 13 — Release v0.2.3 is out** (offline ES 1.00 validator now replays all 384 shader permutations locally with Mali-strict rules — 0 failing. Fixed: studio macro-redefinition killing all character shaders, texture-array terrain blocks, interior int literals, uint hashing in glitch, GLSL 1.30 shadow samplers emulated on ES, SMAA/Glitch shims, plus a mobile quality preset. See `docs/PORTING_NOTES.md` §19). CI builds the engine APK and
+> Status: **M1 device-test round 14 — v0.2.4 merges yalnie's Diffusion-Android game tree** (same gl4es architecture, opposite shader strategy: #version 130 kept, gl4es translates to ES 3.00 on Mali — round()/textureLodOffset/shadow samplers/texture arrays all alive; his tree also brings ~1600 commits of upstream Diffusion + device fixes: ARM64 boneid, visleaf guard, FBO mip clear, SMAA formats, ToneMap, cubemap/subview/particles, assert-crash guards, case-sensitivity fixes. Our engine/launcher/CI kept; MAXSTUDIOBONES guard + mobile preset re-applied. All 384 shader permutations validate clean under GLSL 1.30. See `docs/PORTING_NOTES.md` §20). CI builds the engine APK and
 > the Diffusion Android libraries (client/server/PhysX/MainUI, arm64-v8a) on
 > every push; grab them from [Releases](https://github.com/Kesurage/half-D/releases).
 > Note: the itch.io/ModDB download ships PC binaries only (Windows x86/x64,

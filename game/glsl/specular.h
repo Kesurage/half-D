@@ -1,6 +1,13 @@
 #ifndef SPECULAR_H
 #define SPECULAR_H
 
+#if defined( GL_ES ) && !defined( GL_EXT_texture_array )
+#ifndef sampler2DArray
+#define sampler2DArray sampler2D
+#define texture2DArray( s, c ) texture2D( (s), (c).xy )
+#endif
+#endif
+
 vec3 DiffuseToGlossmap( vec3 rgb )
 {
 	vec3 glossmap = vec3( clamp( dot( rgb, vec3( 0.33 ) ), 0.0, 1.0 ) );
@@ -8,7 +15,7 @@ vec3 DiffuseToGlossmap( vec3 rgb )
 	return glossmap * glossmap;
 }
 
-#if defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
+#if defined( BMODEL_MULTI_LAYERS )
 vec3 DiffuseToGlossmapTerrain( sampler2DArray ColorMap, vec2 texcoord, vec4 mask0, vec4 mask1, vec4 mask2, vec4 mask3 )
 {
 	vec4 res = vec4( 0.0 );

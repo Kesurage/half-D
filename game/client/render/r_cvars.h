@@ -62,7 +62,6 @@ extern cvar_t	*gl_check_errors;
 extern cvar_t	*vid_gamma;
 extern cvar_t	*vid_brightness;
 extern cvar_t	*r_show_renderpass;
-extern cvar_t	*gl_diag;
 extern cvar_t	*r_show_light_scissors;
 extern cvar_t	*r_show_normals;
 extern cvar_t	*r_show_lightprobes;
@@ -137,6 +136,5 @@ extern cvar_t *r_decals_ext;
 extern cvar_t *gl_fsr;
 extern cvar_t *fps_max;
 extern cvar_t *gl_texture_nearest;
-extern cvar_t *cl_gunsmoke;
 
 #endif//R_CVARS_H

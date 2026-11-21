@@ -92,7 +92,7 @@ void main( void )
 	float Brightness = u_DynLightBrightness;
 
 	// add bump
-	if( bool(u_GenericCondition == 1.0f) )
+	if( bool(u_GenericCondition == 1.0) )
 	{
 		N = normalmap2D( u_NormalMap, var_TexDiffuse );
 		if( bool( gl_FrontFacing )) N = -N;
@@ -123,7 +123,7 @@ void main( void )
 	{
 		float fogFactor = exp( -dist * u_FogParams.w );
 		fogFactor = clamp( fogFactor, 0.0, 1.0 );
-		atten = mix( 0.0, atten, fogFactor ); // half-D: int literal, strict GLSL ES 1.00 rejects it
+		atten = mix( 0.0, atten, fogFactor );
 	}
 
 	// do modified hemisperical lighting

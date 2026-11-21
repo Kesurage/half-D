@@ -145,3 +145,19 @@
      on GL 2.x) — renderscale 0.85, shadows/sun-shadow/grass-shadows off,
      sunshafts/exposure/lensflare/water-refraction/portals/DoF off,
      mirror quality 1, grass fade 512-1024.
+
+  22. (v0.2.4) MERGE from yalnie/Diffusion-Android (shared with permission,
+     2026-11-21): his tree is the same architecture but took the opposite
+     shader approach — #version 130 kept, gl4es translates to ES 3.00 on
+     Mali-G57, with source-level #ifdef GL_ES blocks (precision, shadow-
+     sampler emulation, texel-offset fallbacks). That keeps round(),
+     textureLodOffset, shadow samplers and texture arrays alive and avoids
+     the whole ES 1.00 strictness class. Merged: client/, server/, common/,
+     game_shared/, glsl/ (~1600 commits of upstream Diffusion + his device
+     fixes: ARM64 studio boneid sign/limits, world visleaf guard, FBO mip
+     clear, SMAA texture formats + validation, ToneMap luminance capture,
+     cubemap/subview/frustum/particles reworks, assert-crash guards,
+     case-sensitivity and int/float mismatch fixes across all shaders).
+     Kept ours: engine/ (launcher, gl4es forcing, APK asset layer), build
+     glue, CI. Re-applied on top: MAXSTUDIOBONES macro-redefinition guard
+     (r_shader.cpp), gl_mobile_quality preset (view.cpp).

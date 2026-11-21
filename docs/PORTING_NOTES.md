@@ -479,3 +479,27 @@ Findings, fixed in one pass:
 
 Perf: gl_mobile_quality preset (default on GL 2.x) turns off the
 per-frame effects the heartbeat showed costing the most.
+
+## 20. v0.2.4: the yalnie merge
+
+A second Android port existed all along: yalnie/Diffusion-Android (the dev
+reached out and shared the source). Same architecture — Diffusion game code
+on xash3d-fwgs via gl4es — but the opposite shader strategy, and his is the
+one the device likes:
+
+- We downgraded to #version 120 (v0.1.4) and fought ES 1.00 strictness for
+  three rounds (int literals, shadow samplers, texture arrays, round(),
+  textureLodOffset...).
+- He kept #version 130: gl4es translates 130 to ES 3.00 on the Mali-G57,
+  where all of those constructs exist natively. His remaining problems were
+  source-level and small (case sensitivity on Android FS, int/float
+  mismatches), all fixed in his tree.
+
+Takeaway recorded for the future: on GLES3-class hardware, prefer the
+gl4es 130->ES3.00 path over downgrading the GLSL version.
+
+Merged his client/server/common/game_shared/glsl (558 files), kept our
+engine and build integration, re-applied our two render-layer fixes he
+lacked (MAXSTUDIOBONES redefinition guard, gl_mobile_quality preset).
+New offline sweep: scripts/validate_gl130.py — all 384 permutations
+compile clean under desktop GLSL 1.30 (the grammar gl4es receives).

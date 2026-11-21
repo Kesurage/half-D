@@ -16,23 +16,18 @@ GNU General Public License for more details.
 
 #define NUM_SAMPLES		4.0
 
-#ifdef GL4ES
-// half-D: GLSL ES 1.00 has no samplerCubeShadow/shadowCube (GLSL 1.30).
-// The omnidirectional shadow cubemap is sampled as a regular samplerCube
-// and the depth comparison is done manually — see shadow_proj.h
-uniform samplerCube	u_ShadowMap;
-vec2 shadowCube_hdes( vec4 c )
-{
-	return vec2( step( c.w, textureCube( u_ShadowMap, c.xyz ).r ));
-}
-#define shadowCube( tex, c ) shadowCube_hdes( c )
-#else
-uniform samplerCubeShadow	u_ShadowMap;
+#if defined( GL_ES ) && !defined( GL_EXT_gpu_shader4 )
+#ifndef samplerCubeShadow
+#define samplerCubeShadow samplerCube
+#define shadowCube( s, c ) vec4( textureCube( (s), (c).xyz ).r )
 #endif
+#endif
+
+uniform samplerCubeShadow	u_ShadowMap;
 
 #define SHADOW_VOGEL_DISK  // uncomment this to enable smoothing
 
-float depthCube( in vec3 coord, const float scale, const float bias )
+float depthCube( const in vec3 coord, const float scale, const float bias )
 {
 	float fs_z = max( abs( coord.x ), max( abs( coord.y ), abs( coord.z ) ) ) - 4.0;	// acne remove factor
 	float depth = ((fs_z * scale + bias) / fs_z) * 0.5 + 0.5;
@@ -40,7 +35,7 @@ float depthCube( in vec3 coord, const float scale, const float bias )
 	return shadowCube( u_ShadowMap, vec4( coord, depth ) ).r;
 }
 
-float ShadowOmni( in vec3 I, in vec4 params )
+float ShadowOmni( const in vec3 I, const in vec4 params )
 {
 #if defined( SHADOW_PCF2X2 ) || defined( SHADOW_PCF3X3 ) || defined( SHADOW_VOGEL_DISK )
 	vec3 forward, right, up;
