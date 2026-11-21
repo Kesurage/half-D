@@ -180,3 +180,18 @@ v0.1.6 remains the current release awaiting a real report.
   override; patched glsl ships in APK assets (CI step); android.c honors
   mount path as filename (dedupe bypass); grass renderer guards both
   currentshader derefs.
+
+## 2026-11-21 — v0.1.7 device crash: world renders, bloom kills the driver
+
+- Crash: Bloom() r_postprocess.cpp:1065 -> glCopyTexSubImage2D -> gl4es
+  texture_read.c:165 readback -> gl4es_glTexSubImage2D texture.c:1755
+  software-mipmap chain -> Mali memcpy SEGV_ACCERR. Root cause: NPOT
+  screen texture with mip chain + mip FBOs; GLES2 can't glGenerateMipmap
+  NPOT -> levels unallocated -> driver faults uploading into them.
+- Override confirmed working: failures 27 -> 10. GenLuminance now the
+  only bloom-chain shader that failed... and ToneMap (gl_exposure=1
+  default) would have crashed right after Bloom with the same pattern.
+- Remaining 10 failures decoded from the driver text: 8 trivial ES1.00
+  violations (fixed), Glitch+SMAA are GLSL 130-only (guarded, stay off).
+- v0.1.8: 8 glsl fixes, Bloom/ToneMap GL3 gate, CheckShader guards on all
+  post effects (MotionBlur was called unconditionally every frame!).

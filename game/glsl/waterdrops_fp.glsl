@@ -52,7 +52,7 @@ void main( void )
         // Current drop properties. Coordinates are rounded to ensure a
         // consistent value among the fragment of a given drop.
         //vec4 d = texture( iChannel1, round( u * x - 0.25 ) / x );
-        vec2 v = round( u * x - 0.25 ) / x;
+        vec2 v = floor( u * x - 0.25 + 0.5 ) / x;
         vec4 d = vec4( noise( v * 200.0 ), noise( v ));
         
         // Drop shape and fading

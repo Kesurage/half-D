@@ -312,3 +312,32 @@ Fix (v0.1.7):
 - r_grass.cpp: both grass passes guard the currentshader deref.
 - CI copies game/glsl into engine/android/app/src/main/assets/ (gradle
   already stores assets uncompressed via noCompress).
+
+## 14. v0.1.7 device post-mortem: world renders; bloom trips the driver
+
+Massive round: the world now renders end-to-end (map load, studio models,
+brush list, grass, post effects start), and the APK-assets glsl override
+from v0.1.7 WORKS - shader failures dropped 27 -> 10.
+
+The crash moved to Bloom (r_postprocess.cpp:1065): glCopyTexSubImage2D on
+a screen-sized NPOT texture that has a mip chain + mip-level FBO
+attachments. Under GLES2 glGenerateMipmap cannot allocate mips for NPOT
+textures, so levels 1+ are unallocated; gl4es implements the copy as
+readback + glTexSubImage2D, and its software-mipmap chain (texture.c:1755)
+then uploads into the missing levels - the Mali driver faults in memcpy
+(SEGV_ACCERR). ToneMap (auto exposure, `gl_exposure` defaults 1) runs
+right after Bloom with the same pattern and would crash next.
+
+Of the 10 remaining shader failures, 8 were trivial ES 1.00 violations
+now fixed (int literals in float math, round(), %, int overload arg).
+Glitch (uint bitops) and SMAA (textureLodOffset) are GLSL 130-only and
+stay off - both are cvar-gated (glitch is gameplay-triggered, gl_smaa
+defaults 0).
+
+v0.1.8:
+- 8 shader files fixed for ES 1.00 (drawshafts, motionblur, heat,
+  lensflare, waterdrops, generate_luminance, grassdepth_vp, dronescreen)
+- Bloom + ToneMap gated on GL 3.0+ (NPOT mip chains are GL3-class)
+- CheckShader guards on every post effect (a missing shader skips the
+  effect instead of NULL-derefing; upstream only guarded RenderSunShafts)
+- GrassDepth compiles again -> grass depth/shadow pass is back

@@ -535,6 +535,11 @@ void RenderSunShafts( void )
 
 void MotionBlur(void)
 {
+	// half-D: the shader may be missing (GLSL 130-only sources fail on
+	// ES 1.00) - skip the effect instead of dereferencing a NULL program
+	if( !CheckShader( glsl.MotionBlur ))
+		return;
+
 	static float drunk_amount = 0.0f;
 	float Accum;
 
@@ -736,6 +741,11 @@ void RenderGaussBlur( float blur1, float blur2 )
 
 void HorizontalBlur( void )
 {
+	// half-D: the shader may be missing (GLSL 130-only sources fail on
+	// ES 1.00) - skip the effect instead of dereferencing a NULL program
+	if( !CheckShader( glsl.HorizontalBlur ))
+		return;
+
 	static float Accum = 0.0f;
 
 	if( Accum == 0.0f ) // make sure it's faded out
@@ -825,6 +835,11 @@ void HorizontalBlur( void )
 
 void ScreenWater(void)
 {
+	// half-D: the shader may be missing (GLSL 130-only sources fail on
+	// ES 1.00) - skip the effect instead of dereferencing a NULL program
+	if( !CheckShader( glsl.ScreenWater ))
+		return;
+
 	float Speed = gEngfuncs.GetLocalPlayer()->curstate.vuser1.x;
 
 	// special condition...
@@ -860,6 +875,11 @@ void ScreenWater(void)
 
 void Glitch( void )
 {
+	// half-D: the shader may be missing (GLSL 130-only sources fail on
+	// ES 1.00) - skip the effect instead of dereferencing a NULL program
+	if( !CheckShader( glsl.Glitch ))
+		return;
+
 	if( gHUD.GlitchAmount > 0.0f && tr.time > gHUD.GlitchHoldTime )
 		gHUD.GlitchAmount = CL_UTIL_Approach( 0.0f, gHUD.GlitchAmount, g_fFrametime );
 	
@@ -887,6 +907,11 @@ void Glitch( void )
 
 void Monochrome( void )
 {
+	// half-D: the shader may be missing (GLSL 130-only sources fail on
+	// ES 1.00) - skip the effect instead of dereferencing a NULL program
+	if( !CheckShader( glsl.Monochrome ))
+		return;
+
 	const float MonochromeState = gEngfuncs.GetLocalPlayer()->curstate.vuser1.z;
 
 	float CurrentMonochrome = 0.0f;
@@ -1052,6 +1077,14 @@ void Bloom( void )
 	if( !CVAR_TO_BOOL( r_bloom ) )
 		return;
 
+	// half-D: bloom builds a screen-sized (NPOT) texture with a mip chain
+	// and mip-level FBO attachments. GLES2 cannot generate mips for NPOT
+	// textures, so the levels stay unallocated and gl4es's software-mipmap
+	// upload path crashes the Mali driver (v0.1.7 device crash). GL 3.0+
+	// contexts handle it fine.
+	if( glConfig.version < 3.0f )
+		return;
+
 	if( IsBuildingCubemaps() ) // no bloom in cubemaps
 		return;
 
@@ -1150,6 +1183,11 @@ int RenderExposureStorage(void)
 void ToneMap(void)
 {
 	if( !CVAR_TO_BOOL( gl_exposure ) )
+		return;
+
+	// half-D: auto exposure uses the same screen-sized NPOT mip chain as
+	// bloom - GLES2-unsafe for exactly the same reasons (see Bloom)
+	if( glConfig.version < 3.0f )
 		return;
 
 	if( IsBuildingCubemaps() ) // no exposure change in cubemaps
@@ -1293,6 +1331,11 @@ void SMAA( void )
 	if( gl_smaa->value <= 0 )
 		return;
 
+	// half-D: the shader may be missing (GLSL 130-only sources fail on
+	// ES 1.00) - skip the effect instead of dereferencing a NULL program
+	if( !CheckShader( glsl.SMAAEdgeDetect ) || !CheckShader( glsl.SMAABlendWeight ) || !CheckShader( glsl.SMAANeighborBlend ))
+		return;
+
 	const int w = RENDER_GET_PARM( PARM_SCREEN_WIDTH, 0 );
 	const int h = RENDER_GET_PARM( PARM_SCREEN_HEIGHT, 0 );
 
@@ -1386,6 +1429,11 @@ void DownScale( void )
 
 void LensFlare( void )
 {
+	// half-D: the shader may be missing (GLSL 130-only sources fail on
+	// ES 1.00) - skip the effect instead of dereferencing a NULL program
+	if( !CheckShader( glsl.LensFlare ))
+		return;
+
 	if( gl_lensflare->value <= 0 )
 		return;
 	
@@ -1492,6 +1540,11 @@ void LensFlare( void )
 
 void WaterDrops( void )
 {
+	// half-D: the shader may be missing (GLSL 130-only sources fail on
+	// ES 1.00) - skip the effect instead of dereferencing a NULL program
+	if( !CheckShader( glsl.WaterDrops ))
+		return;
+
 	// player is in car
 	if( gEngfuncs.GetLocalPlayer()->curstate.vuser1.y > 0.0f )
 		gHUD.ScreenDrips_Visible = false;
@@ -1551,6 +1604,11 @@ void WaterDrops( void )
 
 void DroneScreenShader( void )
 {
+	// half-D: the shader may be missing (GLSL 130-only sources fail on
+	// ES 1.00) - skip the effect instead of dereferencing a NULL program
+	if( !CheckShader( glsl.DroneScreen ))
+		return;
+
 	if( !(gEngfuncs.GetLocalPlayer()->curstate.effects & EF_PLAYERDRONECONTROL) )
 		return;
 

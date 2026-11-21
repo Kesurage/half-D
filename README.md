@@ -2,7 +2,7 @@
 
 **Diffusion (by Aynekko) — native Android port. A fork of [Xash3D-FWGS](https://github.com/FWGS/xash3d-fwgs) delivering a standalone, playable APK with a built-in launcher, custom touch controls, FSR1 upscaling and Mali/panvk-friendly graphics settings.**
 
-> Status: **M1 device-test round 7 — Release v0.1.7 is out** (v0.1.6 RENDERS the world but crashed in grass fog because the shader fixes never reached the device — the original itch glsl/ in the game folder shadows everything; the APK now ships the patched glsl as a highest-priority override, see `docs/PORTING_NOTES.md` §13). CI builds the engine APK and
+> Status: **M1 device-test round 8 — Release v0.1.8 is out** (v0.1.7 rendered the whole world and crashed in bloom: GLES2 can't build the NPOT mip chain bloom/auto-exposure need, and 8 more shaders had small ES 1.00 violations — bloom/exposure gated to GL 3.0+, shaders fixed, every post effect NULL-guarded, see `docs/PORTING_NOTES.md` §14). CI builds the engine APK and
 > the Diffusion Android libraries (client/server/PhysX/MainUI, arm64-v8a) on
 > every push; grab them from [Releases](https://github.com/Kesurage/half-D/releases).
 > Note: the itch.io/ModDB download ships PC binaries only (Windows x86/x64,

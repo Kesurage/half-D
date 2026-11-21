@@ -65,3 +65,21 @@
      when a grass/fog shader failed to compile (GL 2.x), the fog path
      segfaulted at u_FogParams (offset 0x524 of a NULL program pointer).
      Guarded; a missing shader now skips the uniform upload.
+
+  10. glsl (v0.1.8): eight ES 1.00 violations fixed so their shaders compile
+     on GLES2 contexts: int literals in float arithmetic (drawshafts
+     `accum /= 28`, motionblur `Multiplier * N`, lensflare `circColor + N`,
+     luminance `1 + lum`, heat `linearizeDepth( 4096, ...)`, grassdepth
+     `<= 50`), `round()` (waterdrops, replaced with floor(x+0.5)), and the
+     `%` operator (dronescreen, rewritten with mod/floor on floats).
+     Glitch (uint bitops) and SMAA (textureLodOffset) remain GLSL 130-only.
+  11. client/render/r_postprocess.cpp (v0.1.8): every post effect now starts
+     with a CheckShader guard - a shader that failed to compile skips the
+     effect instead of dereferencing a NULL program pointer (upstream
+     RenderSunShafts already had this; MotionBlur, HorizontalBlur,
+     ScreenWater, Glitch, Monochrome, WaterDrops, LensFlare,
+     DroneScreenShader, SMAA and Bloom did not). Bloom and ToneMap are
+     additionally gated on GL 3.0+: their screen-sized NPOT texture with a
+     mip chain and mip-level FBO attachments cannot work on GLES2
+     (glGenerateMipmap fails on NPOT, gl4es's software-mipmap upload into
+     the unallocated levels crashed the Mali driver).

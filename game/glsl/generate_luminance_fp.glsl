@@ -24,7 +24,7 @@ varying vec2		var_TexCoord;
 float GetLogLuminance( vec3 color )
 {
 	float lum = GetLuminance( color );
-	return lum / ( 1 + lum );
+	return lum / ( 1.0 + lum );
 }
 
 void main()
