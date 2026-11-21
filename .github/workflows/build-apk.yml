@@ -144,8 +144,10 @@ jobs:
       # could not find them (device test 2026-11-20, see logs/device-tests/)
       run: |
         cd game/out/diffusion/bin
+        # yalnie's tree already installs with the lib- prefix; only rename
+        # when the un-prefixed name is present
         for f in client server menu; do
-          mv "${f}_android_arm64.so" "lib${f}_android_arm64.so"
+          [ -f "${f}_android_arm64.so" ] && mv "${f}_android_arm64.so" "lib${f}_android_arm64.so" || true
         done
         ls -lh
 
