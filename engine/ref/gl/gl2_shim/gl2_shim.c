@@ -1169,7 +1169,12 @@ static void APIENTRY GL2_Color4ubv( const GLubyte *v )
 	GL2_Color4ub( v[0], v[1], v[2], v[3] );
 }
 
-// half-D: remaining immediate-mode variants the Diffusion client resolves
+// half-D: remaining immediate-mode variants the Diffusion client resolves.
+// Forward declarations — TexCoord2f/MultiTexCoord2f/Normal3fv are defined
+// further down.
+static void APIENTRY GL2_TexCoord2f( GLfloat u, GLfloat v );
+static void APIENTRY GL2_MultiTexCoord2f( GLenum tex, GLfloat u, GLfloat v );
+static void APIENTRY GL2_Normal3fv( const GLfloat *v );
 static void APIENTRY GL2_Color3fv( const GLfloat *v ) { GL2_Color4f( v[0], v[1], v[2], 1.f ); }
 static void APIENTRY GL2_Color3ub( GLubyte r, GLubyte g, GLubyte b ) { GL2_Color4ub( r, g, b, 255 ); }
 static void APIENTRY GL2_Color4fv( const GLfloat *v ) { GL2_Color4f( v[0], v[1], v[2], v[3] ); }
