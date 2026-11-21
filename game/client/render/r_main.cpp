@@ -2219,6 +2219,11 @@ if we don't want draw from
 the client (e.g. playersetup preview)
 ===============
 */
+// half-D: per-stage frame timing, accumulated in HUD_RenderFrame and
+// reported as averages by the perf heartbeat window
+static float r_diag_ms_cubemaps = 0, r_diag_ms_animatex = 0;
+static float r_diag_ms_scene = 0, r_diag_ms_postfx = 0;
+
 // half-D: performance heartbeat — every 5 s of rendered frames, log fps,
 // average/worst frame time and scene stats; frames over 150 ms are logged
 // individually as spikes. This is the instrument that makes the next
@@ -2257,11 +2262,15 @@ static void R_DiagFrame( void )
 
 	if( windowS >= 5.0f )
 	{
-		gEngfuncs.Con_Printf( "perf: ^2%.1f fps^7 | frame avg %.1f ms, worst %.0f ms | wpoly %d epoly %d spoly %d grass %d\n",
+		gEngfuncs.Con_Printf( "perf: ^2%.1f fps^7 | frame avg %.1f ms, worst %.0f ms | wpoly %d epoly %d spoly %d grass %d | stage ms: scene %.0f postfx %.0f anim %.1f cube %.1f\n",
 			windowFrames / windowS, windowS * 1000.0f / windowFrames, worstMs,
 			r_stats.c_world_polys, r_stats.c_studio_polys,
-			r_stats.c_sprite_polys, r_stats.c_grass_polys );
+			r_stats.c_sprite_polys, r_stats.c_grass_polys,
+			r_diag_ms_scene / windowFrames, r_diag_ms_postfx / windowFrames,
+			r_diag_ms_animatex / windowFrames, r_diag_ms_cubemaps / windowFrames );
 
+		r_diag_ms_scene = r_diag_ms_postfx = 0;
+		r_diag_ms_animatex = r_diag_ms_cubemaps = 0;
 		windowFrames = 0;
 		worstMs = 0.0f;
 		windowStart = now;
@@ -2295,12 +2304,21 @@ int HUD_RenderFrame( const ref_viewpass_t *rvp )
 
 	memset( tr.visbytes, 0, tr.pvssize );
 
+	// half-D: per-stage timing (reported by the heartbeat)
+	auto diagT0 = std::chrono::steady_clock::now();
+
 	GL_LoadAndRebuildCubemaps( RI->params );  // diffusioncubemaps
+
+	auto diagT1 = std::chrono::steady_clock::now();
+	r_diag_ms_cubemaps += std::chrono::duration<float>( diagT1 - diagT0 ).count() * 1000.0f;
 
 	tr.fCustomRendering = true;
 	tr.realframecount++;
 
 	R_Animatex();
+
+	auto diagT2 = std::chrono::steady_clock::now();
+	r_diag_ms_animatex += std::chrono::duration<float>( diagT2 - diagT1 ).count() * 1000.0f;
 
 	// draw main view
 	R_RenderScene();
@@ -2316,6 +2334,9 @@ int HUD_RenderFrame( const ref_viewpass_t *rvp )
 	if( CVAR_TO_BOOL( r_show_lightprobes ) )
 		DrawLightProbes();
 
+	auto diagT3 = std::chrono::steady_clock::now();
+	r_diag_ms_scene += std::chrono::duration<float>( diagT3 - diagT2 ).count() * 1000.0f;
+
 	GL_DepthTest( GL_FALSE );
 	GL_DepthMask( GL_FALSE );
 
@@ -2329,6 +2350,9 @@ int HUD_RenderFrame( const ref_viewpass_t *rvp )
 	R_RestoreGLState();
 
 	R_UnloadFarGrass();
+
+	auto diagT4 = std::chrono::steady_clock::now();
+	r_diag_ms_postfx += std::chrono::duration<float>( diagT4 - diagT3 ).count() * 1000.0f;
 
 	HUD_PrintStats();
 

@@ -303,3 +303,14 @@ v0.1.6 remains the current release awaiting a real report.
   single-layer fallback (pre-existing since v0.2.4).
 - Grass toggles reverted (no measurable cost).
 - Keep: heartbeat, GL caps line, _snd_mixahead 0.3.
+
+## 2026-11-21 — v0.2.7: DownScale was the second readback
+
+- v0.2.6 verdict: sounds fixed, fps not. Code walk: DownScale() at
+  renderscale<1 = same pglCopyTexSubImage2D per frame as FSR. Preset v4
+  sets renderscale 1.0. 16bpp copy also suspect for glitchy look.
+- Heartbeat now reports per-stage ms (scene/postfx/anim/cube).
+- Ref logs texture misses + upload failures by name; caps2 line for
+  s3tc/etc1/astc/fbo.
+- Sandbox recycle mid-round restored a v0.1.0-era tree; reset to
+  origin/main recovered everything (v0.2.x lives on GitHub).

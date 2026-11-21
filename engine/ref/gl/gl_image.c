@@ -1391,7 +1391,12 @@ int GL_LoadTexture( const char *name, const byte *buf, size_t size, int flags )
 	gEngfuncs.Image_SetForceFlags( picFlags );
 
 	rgbdata_t *pic = gEngfuncs.FS_LoadImage( name, buf, size );
-	if( !pic ) return 0; // couldn't loading image
+	if( !pic )
+	{
+		// half-D: silent texture misses were unattributable on device
+		gEngfuncs.Con_Printf( S_ERROR "half-D: texture not found: %s\n", name );
+		return 0; // couldn't loading image
+	}
 
 	// allocate the new one
 	tex = GL_AllocTexture( name, flags );
@@ -1399,6 +1404,8 @@ int GL_LoadTexture( const char *name, const byte *buf, size_t size, int flags )
 
 	if( !GL_UploadTexture( tex, pic ))
 	{
+		// half-D: upload failures (format/compression) were silent
+		gEngfuncs.Con_Printf( S_ERROR "half-D: texture upload failed: %s\n", name );
 		memset( tex, 0, sizeof( gl_texture_t ));
 		gEngfuncs.FS_FreeImage( pic ); // release source texture
 		return 0;
@@ -1549,6 +1556,8 @@ int GL_LoadTextureArray( const char **names, int flags )
 
 	if( !GL_UploadTexture( tex, pic ))
 	{
+		// half-D: upload failures (format/compression) were silent
+		gEngfuncs.Con_Printf( S_ERROR "half-D: texture upload failed: %s\n", name );
 		memset( tex, 0, sizeof( gl_texture_t ));
 		gEngfuncs.FS_FreeImage( pic ); // release source texture
 		return 0;

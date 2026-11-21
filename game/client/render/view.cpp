@@ -499,7 +499,12 @@ void V_VidInit( void )
 		// final composite (purple checkers). Grass back to yalnie defaults
 		// — its cost was negligible next to the FSR cliff.
 		gl_fsr->value = 0.0f;
-		ConPrintf( "renderer: mobile quality preset v3 applied (gl_mobile_quality 1)\n" );
+		// half-D v0.2.7: renderscale 1.0 — at scale < 1 DownScale() does a
+		// pglCopyTexSubImage2D fullscreen copy every frame (the same gl4es
+		// CPU readback as FSR; the v0.2.6 revert just switched which copy
+		// ran). Full resolution with no copy beats a copied 0.85 frame.
+		gl_renderscale->value = 1.0f;
+		ConPrintf( "renderer: mobile quality preset v4 applied (gl_mobile_quality 1)\n" );
 	}
 
 	PrevViewAngles = g_vecZero;

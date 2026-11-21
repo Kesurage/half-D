@@ -180,3 +180,12 @@
      does a pglCopyTexSubImage2D fullscreen copy per frame — a gl4es CPU
      readback, seconds per frame on Mali) and r_grass/r_grass_lighting
      back to yalnie defaults (cost was negligible next to the FSR cliff).
+
+  25. (v0.2.7) preset v4: gl_renderscale 1.0 — DownScale() (the active
+     path at renderscale < 1) does the same per-frame pglCopyTexSubImage2D
+     fullscreen copy as FSR(), i.e. the v0.2.6 FSR revert just switched
+     which gl4es CPU readback ran. DownScale() now warns once when
+     engaged. Perf heartbeat extended with per-stage ms (cubemaps /
+     animatex / scene / postfx). ref logs texture load failures by name
+     (silent misses were unattributable) and a caps2 line (s3tc/etc1/
+     astc/fbo) for DDS diagnosis.

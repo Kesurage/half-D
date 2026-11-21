@@ -551,3 +551,33 @@ epoly (146-208 ms vs 59-83 ms at 100k) — that gap is the next hunt
 (lightprobes? particles? studio uniform traffic?) once this build is
 confirmed stable. Audio underruns at 6 fps are expected to shrink with
 the FSR cliff gone; _snd_mixahead stays 0.3.
+
+## 23. v0.2.7: the second readback — DownScale was FSR in disguise
+
+v0.2.6 report: sounds fixed, still 4-6 fps, textures glitchy, model/glass
+texture errors. No v0.2.6 log (the 14:39 upload was a v0.2.5 session),
+so this round came from a code walk of everything that runs per frame:
+
+1. THE FPS ANSWER: with FSR off, HUD_RenderFrame routes into DownScale()
+   whenever renderscale < 1 — which does the SAME pglCopyTexSubImage2D
+   fullscreen copy per frame. The v0.2.6 revert moved the frame from one
+   CPU readback to another; fps could not recover. The window is also
+   16 bpp, so each frame crossed a lossy CPU copy — the likely 'glitchy'
+   look. Preset v4: gl_renderscale 1.0 (DownScale early-returns). SMAA
+   verified to early-out when off; GL_PrecompileUberShaders verified to
+   early-out after the first frame (bPrecompiled) — both clean.
+2. Stage timing added to the heartbeat: cubemaps / animatex / scene /
+   postfx ms per frame — the next log attributes whatever cost remains
+   (suspects for the residual ~2x vs the pre-merge tree: studio light-
+   probes, particles, uniform traffic).
+3. Texture model errors were invisible by design — ref returns 0
+   silently. GL_LoadTexture/GL_LoadTextureArray now log every miss and
+   upload failure by name; a caps2 line (s3tc/etc1/astc/fbo) will show
+   whether DDS textures can even load through gl4es.
+4. Glass: STUDIO_ALPHA_GLASS studio permutation; no blind change — the
+   16-bpp copy removal may fix the look; if not, the next log + a
+   screenshot localizes it.
+
+Note: the dev sandbox was recycled mid-round and restored a v0.1.0-era
+checkout; recovered by resetting to origin/main (af4e4ff). All v0.2.x
+work lived on GitHub.

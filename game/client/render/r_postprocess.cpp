@@ -1400,6 +1400,16 @@ void DownScale( void )
 	if( gl_renderscale->value >= 1.0f )
 		return;
 
+	// half-D: this path copies the whole framebuffer with
+	// pglCopyTexSubImage2D every frame — a gl4es CPU readback (heavy on
+	// Mali). Print once so device logs explain the per-frame cost.
+	static bool warnedDownscale = false;
+	if( !warnedDownscale )
+	{
+		gEngfuncs.Con_Printf( "^3Warning:^7 renderscale < 1 uses a per-frame framebuffer copy (slow on gl4es)\n" );
+		warnedDownscale = true;
+	}
+
 	GL_Setup2D();
 
 	const float w = RENDER_GET_PARM( PARM_SCREEN_WIDTH, 0 );
