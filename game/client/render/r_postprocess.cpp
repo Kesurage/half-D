@@ -347,6 +347,15 @@ void RenderSunShafts( void )
 	if( !CheckShader( glsl.genSunShafts ) || !CheckShader( glsl.drawSunShafts ) || !CheckShader( glsl.blurShader ) )
 		return;
 
+	// half-D: sun shafts copy the full screen (color AND depth) back into
+	// textures every frame. Under GLES2 (via gl4es) the color copy becomes a
+	// full-screen CPU readback and the depth copy just fails (GLES2 cannot
+	// read depth back), so the effect was simultaneously the biggest
+	// per-frame stall and visually broken (garbage depth mask). GL 3.0+
+	// contexts handle both copies fine (v0.1.8 device test: 0-1 fps).
+	if( glConfig.version < 3.0f )
+		return;
+
 	if( !(world->features & WORLD_HAS_SKYBOX) )
 		return; // don't waste time on tracing
 

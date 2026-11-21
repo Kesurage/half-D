@@ -1,6 +1,18 @@
 #ifndef EMBOSS_H
 #define EMBOSS_H
 
+#if defined( GL4ES )
+// half-D: on ES 1.00 (every shader is translated by gl4es, which defines
+// GL4ES) there is no textureSize(), no array constructors and no
+// sampler2DArray. The emboss filter is a subtle bump detail - make it a
+// no-op there instead of failing the whole Bmodel*/Studio* shader family.
+// Terrain (BMODEL_MULTI_LAYERS) stays GL 3.0+-only either way: it needs
+// texture arrays for the layer map.
+vec3 EmbossFilter( sampler2D ColorMap, vec2 texcoord, float EmbossScale )
+{
+	return vec3( 1.0 );
+}
+#else
 #define KERNEL_SIZE 9
 
 const float kernel[KERNEL_SIZE] = float[KERNEL_SIZE](
@@ -172,5 +184,7 @@ vec3 EmbossFilterTerrain( sampler2DArray ColorMap, vec2 texcoord, vec4 mask0, ve
     return emboss;
 }
 #endif // /BMODEL_MULTI_LAYERS
+
+#endif // !GL4ES
 
 #endif//EMBOSS_H

@@ -151,6 +151,51 @@ static int FS_FindFile_AndroidAssets( struct searchpath_s *search, const char *p
 {
 	AAsset *assets = AAssetManager_open( search->assets->asset_manager, path, AASSET_MODE_UNKNOWN );
 
+	// half-D: AAssetManager_open is case-sensitive, but the engine may ask
+	// for mixed-case names (GL_InitGPUShader builds "glsl/GrassDepth_vp.glsl"
+	// from the "GrassDepth" program name while the asset is
+	// "grassdepth_vp.glsl"). Without this fallback the APK override misses
+	// and the request falls through to the unpatched glsl/ in the user's
+	// game folder (v0.1.8 device test: every Bmodel*/Studio* world shader
+	// kept compiling year-old sources). Retry once, case-insensitively,
+	// against the parent directory listing.
+	if( !assets )
+	{
+		char dir[MAX_SYSPATH], name[MAX_SYSPATH], newpath[MAX_SYSPATH];
+		Q_strncpy( dir, path, sizeof( dir ));
+		char *slash = Q_strrchr( dir, '/' );
+
+		if( slash )
+		{
+			Q_strncpy( name, slash + 1, sizeof( name ));
+			*slash = '\0';
+		}
+		else
+		{
+			Q_strncpy( name, dir, sizeof( name ));
+			dir[0] = '\0';
+		}
+
+		AAssetDir *assetdir = AAssetManager_openDir( search->assets->asset_manager, dir );
+
+		if( assetdir )
+		{
+			const char *entry;
+
+			while(( entry = AAssetDir_getNextFileName( assetdir )))
+			{
+				if( !Q_stricmp( entry, name ))
+				{
+					Q_snprintf( newpath, sizeof( newpath ), "%s/%s", dir, entry );
+					assets = AAssetManager_open( search->assets->asset_manager, newpath, AASSET_MODE_UNKNOWN );
+					break;
+				}
+			}
+
+			AAssetDir_close( assetdir );
+		}
+	}
+
 	if( assets )
 	{
 		AAsset_close( assets );

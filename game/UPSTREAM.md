@@ -83,3 +83,16 @@
      mip chain and mip-level FBO attachments cannot work on GLES2
      (glGenerateMipmap fails on NPOT, gl4es's software-mipmap upload into
      the unallocated levels crashed the Mali driver).
+
+  12. glsl (v0.1.9): emboss.h and alpha2coverage.h get gl4es-aware stubs -
+     textureSize(), array constructors and sampler2DArray do not survive
+     the translation to ES 1.00 and took down every Bmodel*/Studio*
+     shader family. Under GL4ES (defined by the gl4es translator) the
+     emboss detail filter and the mip-based alpha rescale become no-ops;
+     desktop GL keeps the originals. Terrain (BMODEL_MULTI_LAYERS) stays
+     GL 3.0+-only: it needs texture arrays for the layer map.
+  13. client/render/r_postprocess.cpp (v0.1.9): RenderSunShafts is gated
+     on GL 3.0+. It copies the full screen (color AND depth) into
+     textures every frame; under GLES2 the color copy is a full-screen
+     CPU readback and the depth copy fails outright, so the effect was
+     the main per-frame stall and visually broken at the same time.

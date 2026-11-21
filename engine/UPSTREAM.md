@@ -43,3 +43,10 @@ device still booted gles1. v0.1.3 forces gl4es at three layers:
      "unpacked over packed") made the original itch glsl/ shadow the
      port's ES 1.00 shader fixes. android.c honors the path argument as
      the search filename so this second mount isn't deduped away.
+
+  half-D (v0.1.9): FS_FindFile_AndroidAssets retries a case-insensitive
+  lookup (AAssetManager_openDir on the parent + Q_stricmp match) before
+  giving up. AAssetManager_open is case-sensitive and GL_InitGPUShader
+  builds mixed-case names ("glsl/GrassDepth_vp.glsl" from the "GrassDepth"
+  program), so the APK override layer missed every mixed-case shader and
+  the request fell through to the unpatched glsl/ in the game folder.

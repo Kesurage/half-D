@@ -341,3 +341,37 @@ v0.1.8:
 - CheckShader guards on every post effect (a missing shader skips the
   effect instead of NULL-derefing; upstream only guarded RenderSunShafts)
 - GrassDepth compiles again -> grass depth/shadow pass is back
+
+## 15. v0.1.8 device post-mortem: it loads, it runs, at 0-1 fps
+
+First fully playable load: the user got in-game (sounds, NPCs, achievements
+all live). Three new findings:
+
+1. **Mixed-case shader names missed the APK override.** AAssetManager_open
+   is case-sensitive; GL_InitGPUShader builds filenames from program names,
+   and the world/entity families use mixed case (GrassDepth, BmodelSolid,
+   BmodelDlight, StudioSolid, StudioDlight). All of them fell through to
+   the UNPATCHED year-old glsl/ in the game folder - 131 failed compiles
+   over one session (textureSize / array constructors / '%' etc.), and
+   every affected surface was skipped (invisible bmodels and studio
+   models). Fix: case-insensitive retry in FS_FindFile_AndroidAssets.
+2. **emboss.h / alpha2coverage.h are the reason those shaders need the
+   override at all**: textureSize() and float[]() constructors are GLSL
+   120/130-only. Once the override reaches them they still fail - so both
+   headers now carry GL4ES-guarded no-op stubs (emboss detail filter,
+   mip-based alpha rescale). Desktop GL is unchanged.
+3. **0-1 fps**: shadow maps are already self-disabled (gl4es does not
+   advertise GL_ARB_shadow), so the killer is per-frame full-screen
+   readbacks. Sun shafts copy color AND depth back every frame: the color
+   copy is a full-screen CPU readback through gl4es, the depth copy fails
+   (GLES2 cannot read depth) and produces a garbage mask. Gated on
+   GL 3.0+ like bloom. Also: 131 failed shader compiles per session are
+   pure waste (each ~100-300 ms on Mali) and mostly disappear with fixes
+   1+2. Second APK asset shipped: a generated touch_default button pack -
+   the engine ships no touch button art, so every on-screen button was
+   invisible (tappable but unseeable) - plus gfx/touch/stick_thumb and
+   numbers.cfg weapon slots.
+
+Next levers if fps is still bad after v0.1.9: grass density cvars, the
+shader-compile storm at map load (GL_ARB_get_program_binary caching), and
+a proper GLES2 sun-shafts implementation (half-res color copy).

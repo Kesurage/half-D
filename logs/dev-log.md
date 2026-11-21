@@ -195,3 +195,20 @@ v0.1.6 remains the current release awaiting a real report.
   violations (fixed), Glitch+SMAA are GLSL 130-only (guarded, stay off).
 - v0.1.8: 8 glsl fixes, Bloom/ToneMap GL3 gate, CheckShader guards on all
   post effects (MotionBlur was called unconditionally every frame!).
+
+## 2026-11-21 — v0.1.8 device: game loads; three birds with one log
+
+- Repo recovery first: the local clone was a stale Nov-20 snapshot and all
+  v0.1.1..v0.1.8 commits lived only on origin/main; reset to FETCH_HEAD
+  (verified tree == 2381f4c) before continuing.
+- Mixed-case shader names (GrassDepth, Bmodel*, Studio*) missed the APK
+  asset override (AAssetManager_open is case-sensitive) -> compiled the
+  unpatched game-folder glsl -> 131 failures/session, surfaces skipped.
+  Fixed with a case-insensitive retry in FS_FindFile_AndroidAssets.
+- emboss.h/alpha2coverage.h need textureSize()/array ctors (GLSL 120/130)
+  -> GL4ES-guarded no-op stubs; terrain stays GL3-only (texture arrays).
+- 0-1 fps: sun shafts do fullscreen color+depth copies every frame; under
+  GLES2 color=readback stall, depth=guaranteed failure+garbage. GL3 gate.
+- Controls: touch engine is fine (touch_enable=1 on android); the APK just
+  shipped no touch button art. Generated a 31-icon touch_default pack +
+  stick_thumb + numbers.cfg into APK assets.
