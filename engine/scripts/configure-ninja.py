@@ -98,7 +98,11 @@ def main():
 
 	waf_exec = [sys.executable, waf_path, "configure", "-t", args.wscript_path, "-o", out_path,
 				"-T", waf_build_type, "--android={},,{}".format(abi, args.min_sdk_version), "-s",
-				sdl_path, "--skip-sdl2-sanity-check", "--enable-bundled-deps"]
+				sdl_path, "--skip-sdl2-sanity-check", "--enable-bundled-deps",
+				# half-D: match yalnie/Diffusion-Android's renderer matrix —
+				# gles3compat (native GLES 3.0 + GL2 shim) is the tuned path
+				# his engine fork enables; gl4es stays the default renderer.
+				"--enable-gles3compat", "--enable-gles1"]
 
 	# optional prebuilt ffmpeg from FWGS/FFmpeg-Builds
 	ffmpeg_path = os.path.join(args.wscript_path, "3rdparty", "ffmpeg", abi)

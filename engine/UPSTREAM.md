@@ -56,3 +56,9 @@ device still booted gles1. v0.1.3 forces gl4es at three layers:
   169 "couldn't load glsl/..." per session, all brush/studio models
   invisible. It now reports the case-corrected name the asset is stored
   under.
+
+- (v0.3.0) Applied on top of the pin, from yalnie/xash3d-fwgs (the
+  Diffusion-Android porter's fork): gles branch 6033775 (GL2_ShimGetProcAddress
+  + GLES 3.0 context setup) and 1077a2b (levelshot guard); master e1150b0a +
+  35e133ce (BSP lump realignment / unaligned-lump crash fix for ARM).
+  Build flags now include --enable-gles3compat --enable-gles1 (his matrix).

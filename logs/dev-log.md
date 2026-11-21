@@ -314,3 +314,18 @@ v0.1.6 remains the current release awaiting a real report.
   s3tc/etc1/astc/fbo.
 - Sandbox recycle mid-round restored a v0.1.0-era tree; reset to
   origin/main recovered everything (v0.2.x lives on GitHub).
+
+## 2026-11-21 — v0.3.0: rebase onto yalnie's Diffusion-Android
+
+- Research: no Aynekko engine fork (stock fwgs + client renderer);
+  yalnie/Diffusion-Android = the working Android port; our v0.2.4
+  Aynekko-master merge had dropped his GLES/ARM renderer fixes
+  (exposure/tone-mapping, SMAA formats, 76-bone Mali cap, signed
+  boneid, GLSL strictness, BSP alignment).
+- game/ vendored from yalnie b63a4cf; our patches re-applied (preset
+  v5, heartbeat+stages, terrain fallback, DownScale warning, waf
+  --android flow); our ES1.00 rewrite dropped for his #version 130.
+- Engine: +4 yalnie commits (GLES3 ctx/GL2 shim, levelshot, BSP
+  realign x2); +--enable-gles3compat/--enable-gles1.
+- Sandbox recycled twice mid-round; both times recovered from
+  origin/main. All v0.2.x work lives on GitHub.

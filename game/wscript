@@ -14,6 +14,24 @@ default_prefix = '/'
 
 Context.Context.line_just = 60 # should fit for everything on 80x26
 
+def patch_mainui():
+	for p in [
+		os.path.join(top, '3rd-party', 'mainui_cpp', 'menus', 'Main.cpp'),
+		os.path.join(top, '..', 'Diffusion-Android-MainUI', 'menus', 'Main.cpp')
+	]:
+		if os.path.isfile(p):
+			try:
+				with open(p, 'r', encoding='utf-8') as f:
+					src = f.read()
+				if 'CMenuLinksMessageBox::' in src:
+					src = src.replace('void CMenuLinksMessageBox::_Init()', 'void _Init() override')
+					src = src.replace('void CMenuLinksMessageBox::_VidInit( void )', 'void _VidInit( void ) override')
+					with open(p, 'w', encoding='utf-8') as f:
+						f.write(src)
+					Logs.info('Patched %s (fixed MSVC-specific extra qualification for GCC/Clang)' % p)
+			except Exception as e:
+				Logs.warn('Failed to patch Main.cpp: %s' % e)
+
 @Configure.conf
 def get_taskgen_count(self):
 	try: idx = self.tg_idx_count
@@ -27,6 +45,7 @@ def remove_implib_install(self):
 		self.install_path_implib = None
 
 def options(opt):
+	patch_mainui()
 	opt.load('reconfigure xshlib xcompile compiler_optimizations compiler_cxx compiler_c clang_compilation_database strip_on_install subproject')
 
 	grp = opt.add_option_group('Common options')
@@ -38,20 +57,16 @@ def options(opt):
 
 	opt.add_subproject('client server 3rd-party/mainui_cpp 3rd-party/game_launch')
 
-ANDROID_SUBPROJECTS = 'client server 3rd-party/mainui_cpp'
-DESKTOP_SUBPROJECTS = 'client server 3rd-party/mainui_cpp 3rd-party/game_launch'
-def subprojects_for(env):
-	return ANDROID_SUBPROJECTS if env.DEST_OS == 'android' else DESKTOP_SUBPROJECTS
-
 def configure(conf):
+	patch_mainui()
 	conf.env.EXPORT_DEFINES_LIST = []
 	conf.load('fwgslib reconfigure compiler_optimizations')
 
 	# Load compilers early
 	conf.load('xshlib xcompile compiler_c compiler_cxx')
 
-	# half-D: the game sources predate C++17 ('register' storage in stringlib.cpp);
-	# NDK clang defaults to C++17, so pin GNU++14 project-wide
+	# half-D: the game sources predate C++17 ('register' storage in
+	# stringlib.cpp); NDK clang defaults to C++17, so pin GNU++14 project-wide
 	conf.env.append_unique('CXXFLAGS', ['-std=gnu++14'])
 
 	# HACKHACK: override msvc DEST_CPU value by something that we understand
@@ -156,7 +171,8 @@ def configure(conf):
 			msg='Checking if cmath is usable', mandatory = False)
 	conf.define_cond('HAVE_CMATH', cmath_usable)
 
-	conf.env.append_unique('CXXFLAGS', ['-Wno-invalid-offsetof', '-fno-exceptions'])
+	conf.env.append_unique('CFLAGS', ['-fsigned-char'])
+	conf.env.append_unique('CXXFLAGS', ['-fsigned-char', '-Wno-invalid-offsetof', '-fno-exceptions', '-Wno-tautological-constant-out-of-range-compare', '-Wno-tautological-undefined-compare'])
 	conf.define('stricmp', 'strcasecmp', quote=False)
 	conf.define('strnicmp', 'strncasecmp', quote=False)
 	conf.define('_snprintf', 'snprintf', quote=False)
@@ -185,14 +201,23 @@ def configure(conf):
 	if conf.env.HLDEMO_BUILD and conf.env.OEM_BUILD:
 		conf.fatal('Don\'t mix Demo and OEM builds!')
 
+	if conf.check_cxx(fragment='#ifndef __ANDROID__\n#error not android\n#endif\nint main(){return 0;}', mandatory=False):
+		conf.env.DEST_OS = 'android'
+		conf.define('ANDROID', 1)
+		conf.define('__ANDROID__', 1)
+
 	# strip lib from pattern
-	if conf.env.cxxshlib_PATTERN.startswith('lib'):
+	if conf.env.DEST_OS != 'android' and conf.env.cxxshlib_PATTERN.startswith('lib'):
 		conf.env.cxxshlib_PATTERN = conf.env.cxxshlib_PATTERN[3:]
 
 	conf.load('library_naming')
-	conf.add_subproject(subprojects_for(conf.env))
+	# half-D: game_launch is desktop-only; on android build client+server+menu
+	ANDROID_SUBPROJECTS = 'client server 3rd-party/mainui_cpp'
+	DESKTOP_SUBPROJECTS = 'client server 3rd-party/mainui_cpp 3rd-party/game_launch'
+	conf.add_subproject( ANDROID_SUBPROJECTS if conf.env.DEST_OS == 'android' else DESKTOP_SUBPROJECTS )
 
 def build(bld):
+	patch_mainui()
 	if bld.is_install and not bld.options.destdir:
 		bld.fatal('Set the install destination directory using --destdir option')
 
@@ -201,4 +226,4 @@ def build(bld):
 		excl='*.user configuration.py .lock* *conf_check_*/** config.log %s/*' % Build.CACHE_DIR,
 		quiet=True, generator=True)
 
-	bld.add_subproject(subprojects_for(bld.env))
+	bld.add_subproject('client server 3rd-party/mainui_cpp 3rd-party/game_launch')

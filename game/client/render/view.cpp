@@ -113,8 +113,6 @@ cvar_t *r_polyoffset;
 cvar_t *r_grass;
 cvar_t *r_grass_lighting;
 cvar_t *r_grass_shadows;
-cvar_t *gl_mobile_quality;
-cvar_t *gl_diag;
 cvar_t *r_grass_fade_start;
 cvar_t *r_grass_fade_dist;
 cvar_t *r_show_renderpass;
@@ -190,6 +188,8 @@ cvar_t *r_pvs_radius;
 cvar_t *r_decals_ext;
 cvar_t *gl_fsr;
 cvar_t *fps_max;
+cvar_t *gl_mobile_quality;  // half-D: mobile quality preset
+cvar_t *gl_diag;            // half-D: perf heartbeat
 cvar_t *gl_texture_nearest;
 
 cvar_t	v_iyaw_cycle = { "v_iyaw_cycle", "2", 0, 2 };
@@ -467,20 +467,19 @@ void V_Init( void )
 	ui_crosshair_setup = CVAR_REGISTER( "ui_crosshair_setup", "0", FCVAR_UNLOGGED );
 	ui_videooptions_active = CVAR_REGISTER( "ui_videooptions_active", "0", FCVAR_UNLOGGED );
 	ui_forcenoblur = CVAR_REGISTER( "ui_forcenoblur", "0", FCVAR_UNLOGGED );
-	gl_mobile_quality = CVAR_REGISTER( "gl_mobile_quality", "1", FCVAR_ARCHIVE );
-	gl_diag = CVAR_REGISTER( "gl_diag", "1", FCVAR_ARCHIVE );
+	gl_mobile_quality = CVAR_REGISTER( "gl_mobile_quality", "1", FCVAR_ARCHIVE ); // half-D
+	gl_diag = CVAR_REGISTER( "gl_diag", "1", FCVAR_ARCHIVE ); // half-D
 	cl_background = CVAR_GET_POINTER( "cl_background" );
 }
 
 void V_VidInit( void )
 {
-	// half-D: mobile quality preset. The GL 2.x path (gl4es/ES on phones)
-	// pays heavily for per-frame postfx and shadow passes — default to a
-	// tuned preset there so the game is playable. Set gl_mobile_quality 0
-	// to keep full effects, or change individual cvars afterwards.
+	// half-D: mobile quality preset v5 (on yalnie's renderer base). The GL 2.x
+	// path (gl4es/ES on phones) pays heavily for per-frame postfx and shadow
+	// passes — default to a tuned preset there so the game is playable. Set
+	// gl_mobile_quality 0 to keep full effects.
 	if( glConfig.version < 3.0f && CVAR_TO_BOOL( gl_mobile_quality ))
 	{
-		gl_renderscale->value = 0.85f;        // render at 85%, upscale
 		gl_shadows->value = 0.0f;             // dlight shadow passes
 		r_sun_shadow->value = 0.0f;           // sun shadow passes
 		r_grass_shadows->value = 0.0f;        // grass depth pass
@@ -493,18 +492,15 @@ void V_VidInit( void )
 		gl_allow_portals->value = 0.0f;       // portal recursion
 		r_mirrorquality->value = 1.0f;
 		r_blur->value = 0.0f;                 // DoF blur
-		// half-D v0.2.6: FSR stays OFF — FSR() runs at any renderscale and
-		// does a pglCopyTexSubImage2D fullscreen copy every frame, which is
-		// a gl4es CPU readback (seconds per frame on Mali) and broke the
-		// final composite (purple checkers). Grass back to yalnie defaults
-		// — its cost was negligible next to the FSR cliff.
+		// half-D: FSR stays OFF — FSR() runs at any renderscale and does a
+		// pglCopyTexSubImage2D fullscreen copy every frame, which is a gl4es
+		// CPU readback (seconds per frame on Mali) and broke the final
+		// composite (purple checkers).
 		gl_fsr->value = 0.0f;
-		// half-D v0.2.7: renderscale 1.0 — at scale < 1 DownScale() does a
-		// pglCopyTexSubImage2D fullscreen copy every frame (the same gl4es
-		// CPU readback as FSR; the v0.2.6 revert just switched which copy
-		// ran). Full resolution with no copy beats a copied 0.85 frame.
+		// half-D: renderscale 1.0 — at scale < 1 DownScale() does the same
+		// per-frame copy; full resolution with no copy beats a copied frame.
 		gl_renderscale->value = 1.0f;
-		ConPrintf( "renderer: mobile quality preset v4 applied (gl_mobile_quality 1)\n" );
+		ConPrintf( "renderer: mobile quality preset v5 applied (gl_mobile_quality 1)\n" );
 	}
 
 	PrevViewAngles = g_vecZero;

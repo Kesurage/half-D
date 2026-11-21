@@ -25,19 +25,16 @@ gh release delete "$RELEASE_TAG" \
 	--cleanup-tag \
 	--repo "$GITHUB_REPOSITORY" || true
 
-gh run download "$GITHUB_RUN_ID" \
-	--dir artifacts/ \
-	--repo "$GITHUB_REPOSITORY"
+mkdir -p artifacts/
+echo "Fetching artifacts directly from GitHub API..."
+gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --jq '.artifacts[] | "\(.id) \(.name)"' | while read -r id name; do
+	echo "Downloading $name (id: $id)..."
+	gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" > "artifacts/$name"
+done
 
 pushd artifacts/ || exit 1
-echo "Found artifacts:"
-ls
-for i in $(find -mindepth 1 -maxdepth 1 -type d); do
-	mv "$i"/* .
-	rm -rf "$i"
-done
-echo "Repackaged artifacts:"
-ls -R
+echo "Downloaded artifacts:"
+ls -la
 popd || exit 1
 
 #echo "Generated notes:"
@@ -49,7 +46,16 @@ popd || exit 1
 #fi
 
 sleep 10s
-gh release create "$RELEASE_TAG" artifacts/* \
+shopt -s nullglob
+FILES_TO_UPLOAD=(artifacts/*)
+FILES_ONLY=()
+for f in "${FILES_TO_UPLOAD[@]}"; do
+	if [ -f "$f" ]; then
+		FILES_ONLY+=("$f")
+	fi
+done
+
+gh release create "$RELEASE_TAG" "${FILES_ONLY[@]}" \
 	--title "$RELEASE_NAME Continuous $BRANCH_NAME Build" \
 	--target "$GITHUB_SHA" \
 	--repo "$GITHUB_REPOSITORY" \

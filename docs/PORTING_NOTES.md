@@ -581,3 +581,47 @@ so this round came from a code walk of everything that runs per frame:
 Note: the dev sandbox was recycled mid-round and restored a v0.1.0-era
 checkout; recovered by resetting to origin/main (af4e4ff). All v0.2.x
 work lived on GitHub.
+
+## 24. v0.3.0: the research round — we were building the wrong tree
+
+The v0.2.7 device report (lighting broken, character models missing,
+props glitchy, still 4-8 fps with postfx at 0-1 ms and scene at 99% of
+the frame) pointed away from our patches and at the renderer base
+itself. Research round, per the user's direction:
+
+1. NO AYNEKKO ENGINE FORK EXISTS. Diffusion (github.com/Aynekko/Diffusion)
+   runs on stock FWGS xash3d-fwgs — Aynekko's CI repackages the FWGS
+   continuous AppImage. The renderer is entirely client-side (Uncle
+   Mike's custom renderer via PrimeXT) driving the stock render_api v37.
+   Our engine choice (fwgs + gl4es) was correct all along.
+2. THE OTHER ANDROID PORT is yalnie/Diffusion-Android (fork of Aynekko,
+   working APK since Nov 17 2026, github.com/yalnie/Diffusion-Android).
+   Same engine stack as ours. His ~20 commits fix the client renderer
+   for GLES/ARM: tone-mapping exposure texture was GLES-invalid float
+   (lighting!) and the luminance pass sampled before the screen capture;
+   SMAA render targets used GLES-invalid format pairs; 128 skinning
+   bones crash the Mali/Adreno driver (capped to 76); boneid char is
+   unsigned on ARM (breaks the -1 sentinel); GLSL type strictness with
+   #version 130 kept (gl4es translates); case-insensitive shader load;
+   world visleaf guards; FBO mip clears; BSP lump realignment on ARM.
+3. ROOT CAUSE OF THE REGRESSION: our v0.2.4 'merge' took Aynekko master
+   (caaa327) directly and dropped yalnie's Android fixes — verified in
+   the v0.2.7 tree (128-bone cap formula, unsigned boneid, float
+   exposure texture all present). The lighting/models/texture symptoms
+   map 1:1 onto the dropped fixes.
+
+THE REBASE (v0.3.0): game/ is now yalnie b63a4cf + our patches
+re-applied (mobile preset v5, perf heartbeat with stage ms, terrain 2D
+fallback, DownScale warning, --android waf flow). Our own ES 1.00
+shader rewrite is dropped in favor of his proven #version 130 +
+strictness approach. Engine: his gles-branch commits (GL2 shim
+GetProcAddress + GLES 3.0 context setup, levelshot guard) and master's
+BSP lump realignment applied on top of our fwgs pin; build flags now
+match his renderer matrix (--enable-gles3compat --enable-gles1 added,
+gl4es stays default). Renderer experiment knob: `vid_renderer
+gles3compat` runs the native GLES 3.0 + GL2 shim path his fork tunes.
+
+Missing-content note (not port bugs): truck.mdl, sedan passat, HL1 pain
+sounds, glass_gib/raindrop particle textures and the skybox
+(alpha_sky/solid_sky) are absent from the user's game data — they fail
+by name in the log now.

@@ -323,13 +323,7 @@ static bool GL_ProcessShader( const char *filename, CVirtualFS *out, bool compat
 	if( defines ) out->Print( defines );
 
 	// user may override this constants
-	// half-D: permutation defines may carry their own MAXSTUDIOBONES for
-	// uniform-economy bone counts — emitting the default here as well makes
-	// every such permutation a macro redefinition with a different
-	// substitution, which strict compilers reject. Skip when the
-	// permutation defines it.
-	if( defines == NULL || Q_strstr( defines, "MAXSTUDIOBONES" ) == NULL )
-		out->Printf( "#ifndef MAXSTUDIOBONES\n#define MAXSTUDIOBONES %i\n#endif\n", glConfig.max_skinning_bones );
+	out->Printf( "#ifndef MAXSTUDIOBONES\n#define MAXSTUDIOBONES %i\n#endif\n", glConfig.max_skinning_bones );
 	out->Printf( "#ifndef MAX_LIGHTSTYLES\n#define MAX_LIGHTSTYLES %i\n#endif\n", MAX_LIGHTSTYLES );
 	out->Printf( "#ifndef MAXLIGHTMAPS\n#define MAXLIGHTMAPS %i\n#endif\n", MAXLIGHTMAPS );
 	out->Printf( "#ifndef GRASS_ANIM_DIST\n#define GRASS_ANIM_DIST %f\n#endif\n", GRASS_ANIM_DIST );

@@ -14,10 +14,10 @@ GNU General Public License for more details.
 */
 
 #include "hud.h"
-#include <chrono>
 #include "utils.h"
 #include "r_local.h"
 #include <stringlib.h>
+#include <chrono>
 #include "pm_movevars.h"
 #include "mathlib.h"
 #include "r_studio.h"

@@ -2,7 +2,7 @@
 
 **Diffusion (by Aynekko) — native Android port. A fork of [Xash3D-FWGS](https://github.com/FWGS/xash3d-fwgs) delivering a standalone, playable APK with a built-in launcher, custom touch controls, FSR1 upscaling and Mali/panvk-friendly graphics settings.**
 
-> Status: **M1 device-test round 17 — v0.2.7: the fps killer had a twin — DownScale() at renderscale < 1 does the same per-frame pglCopyTexSubImage2D copy as FSR (the v0.2.6 revert just switched readbacks). Preset v4 renders at full scale, the heartbeat gains per-stage ms, and the ref logs every texture miss by name. See `docs/PORTING_NOTES.md` §23). See `docs/PORTING_NOTES.md` §22). CI builds the engine APK and
+> Status: **M1 device-test round 18 — v0.3.0 RESEARCH REBASE: the renderer now sits on yalnie's proven Diffusion-Android base (his GLES/ARM fixes for tone-mapping exposure, SMAA formats, the 76-bone Mali cap, signed boneid, BSP alignment — all dropped by our earlier Aynekko-master merge), our preset/heartbeat/terrain patches re-applied, engine gains his GLES 3.0 + GL2-shim commits and renderer matrix. See `docs/PORTING_NOTES.md` §24). Preset v4 renders at full scale, the heartbeat gains per-stage ms, and the ref logs every texture miss by name. See `docs/PORTING_NOTES.md` §23). See `docs/PORTING_NOTES.md` §22). CI builds the engine APK and
 > the Diffusion Android libraries (client/server/PhysX/MainUI, arm64-v8a) on
 > every push; grab them from [Releases](https://github.com/Kesurage/half-D/releases).
 > Note: the itch.io/ModDB download ships PC binaries only (Windows x86/x64,
