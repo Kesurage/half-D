@@ -404,15 +404,20 @@ static const dllfunc_t binaryshaderfuncs[] =
 {
 { "glProgramBinary"              , (void **)&pglProgramBinaryARB },
 { "glGetProgramBinary"           , (void **)&pglGetProgramBinaryARB },
+{ "glProgramParameteri"          , (void **)&pglProgramParameteriARB },
+{ "glProgramParameteriARB"       , (void **)&pglProgramParameteriARB },
 { NULL, NULL }
 };
-// half-D: the old table also required glProgramParameteri(ARB) — gl4es exposes
-// the binary get/set (ES passthrough) but not the hint setter, so the
-// all-or-nothing check silently disabled the shader disk cache and the whole
-// precompile pass on Android (every permutation compiled lazily mid-frame,
-// 1-13 s spikes). The (optional, hint-only) setter is resolved separately
-// below, after the extension check. This also removes a copy-paste bug that
-// clobbered pglGetProgramivARB with the glProgramParameteri pointer.
+// half-D v0.4.4 REVERT of the v0.4.0 change: the table must keep requiring
+// glProgramParameteri(ARB) so the binary shader disk cache stays DISABLED on
+// gl4es. Loading programs with glProgramBinary creates GL programs with no
+// tracked shader sources, and gl4es's fpe_CustomShader then dereferences
+// program->last_vert->source (NULL) on the first fixed-function state change
+// — the 02:04 device crash, SEGV at 0x20 in fpe.c:468 (Mali-G57). The
+// original table also had a copy-paste bug (glProgramParameteri was stored
+// into pglGetProgramivARB); both entries now fill the correct pointer, so
+// desktop GL keeps the cache while gl4es (no hint setter) falls back to
+// compiling everything from source — same as the reference Android port.
 
 #ifndef CALLBACK
 #define CALLBACK
@@ -795,11 +800,8 @@ static void GL_InitExtensions( void )
 
 	GL_CheckExtension( "GL_ARB_get_program_binary", binaryshaderfuncs, "gl_binaryshader", R_BINARY_SHADER_EXT );
 
-	// half-D: hint setter is optional (gl4es does not export it) — call sites
-	// check for NULL. Without the hint the driver still serves/accepts binaries.
-	pglProgramParameteriARB = (void ( APIENTRY *)( GLuint, GLenum, GLint ))GL_GetProcAddress( "glProgramParameteriARB" );
-	if( !pglProgramParameteriARB )
-		pglProgramParameteriARB = (void ( APIENTRY *)( GLuint, GLenum, GLint ))GL_GetProcAddress( "glProgramParameteri" );
+	// half-D v0.4.4: no optional resolution of the hint setter here — see the
+	// binaryshaderfuncs table above. gl4es must stay without gl_binaryshader.
 
 	// check for hardware skinning
 	pglGetIntegerv( GL_MAX_VERTEX_UNIFORM_COMPONENTS_ARB, &glConfig.max_vertex_uniforms );

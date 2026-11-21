@@ -165,10 +165,14 @@ jobs:
         cp ../assets/fonts/FiraSans-Regular.ttf pkg/diffusion/gfx/fonts/
         # half-D: the itch package ships gfx/particles/raindrop.dds as BC7
         # SRGB, which Mali cannot decode through gl4es (no BPTC — the device
-        # log showed "texture upload failed (format BC7 SRGB)"). Replace it
-        # with the uncompressed DDS built by tools/make_raindrop.py.
+        # log showed "texture upload failed (format BC7 SRGB)"). It is replaced
+        # by the uncompressed DDS built by tools/make_raindrop.py. The other
+        # particle DDS (fleck_wood1/fleck_dirt/glass_gib/tile_gib) are missing
+        # from the 1.21 data entirely (device log 2026-11-22 02:04) — neutral
+        # placeholder chips from tools/make_particle_stubs.py so impact debris
+        # renders instead of showing the missing-texture checker.
         mkdir -p pkg/diffusion/gfx/particles
-        cp ../assets/particles/raindrop.dds pkg/diffusion/gfx/particles/
+        cp ../assets/particles/*.dds pkg/diffusion/gfx/particles/
         cd pkg && zip -r ../diffusion-android-aarch64-libs.zip diffusion
 
     - name: Upload game libs artifact

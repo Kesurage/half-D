@@ -461,7 +461,15 @@ program_t* APIENTRY_GL4ES fpe_CustomShader(program_t* glprogram, fpe_state_t* st
 {
     // state is not empty and glprogram already has some cache (it may be empty, but kh'thingy is initialized)
     // TODO: what if program is composed of more then 1 vertex or fragment shader?
+    // half-D: a program without tracked shader sources (e.g. one restored via
+    // glProgramBinary) cannot be customized — reading last_vert->source was a
+    // NULL deref crash on Mali-G57 (SEGV at 0x20, this function). Fall back to
+    // the plain program instead of crashing.
+    if( !glprogram || !glprogram->last_vert || !glprogram->last_frag )
+        return glprogram;
     fpe_fpe_t *fpe = fpe_GetCache((fpe_cache_t*)glprogram->fpe_cache, state, 0);
+    if( !fpe )
+        return glprogram; // half-D: cache allocation failed, draw uncustomized
     if(fpe->glprogram==NULL) {
         GLint status;
         fpe->vert = gl4es_glCreateShader(GL_VERTEX_SHADER);
@@ -539,6 +547,8 @@ program_t* APIENTRY_GL4ES fpe_CustomShader_DefaultVertex(program_t* glprogram, f
     // state is not empty and glprogram already has some cache (it may be empty, but kh'thingy is initialized)
     // TODO: what if program is composed of more then 1 vertex or fragment shader?
     fpe_fpe_t *fpe = fpe_GetCache((fpe_cache_t*)glprogram->fpe_cache, state_vertex, 0);
+    if( !fpe )
+        return glprogram; // half-D: cache allocation failed, draw uncustomized
     if(fpe->glprogram==NULL) {
         GLint status;
         fpe->vert = gl4es_glCreateShader(GL_VERTEX_SHADER);

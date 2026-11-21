@@ -470,3 +470,52 @@ Fix bundle (all defensive, all in the engine):
 - sys_con.c: engine.log APPENDS when the engine restarts in-process,
   so the next crash report will finally contain the ORIGINAL first
   error instead of a truncated log.
+
+## 2026-11-22 — v0.4.4: the crash was MY v0.4.0 shader binary cache; gl4es was never stale
+
+Crash 02:04:32 (build 35d7937): SEGV at 0x20 in gl4es fpe_CustomShader
+(fpe.c:468 = glprogram->last_vert->source) while drawing the menu world
+(maps/menux) on the Infinix X6882 (Helio G99 / Mali-G57). The game RAN —
+v0.4.3's boot fixes all held; this is the in-game phase.
+
+Forensics against the reference port (yalnie/Diffusion-Android):
+- My vendored gl4es is content-identical to yalnie's pin (ptitSeb a025615b,
+  2026-10-14). The "1.1.6" CHANGELOG head misled me — upstream stopped
+  updating the changelog; version.h says 1.1.7. A re-vendor produced a
+  268-file diff with ZERO insertions/deletions. gl4es was never the delta.
+- My engine already contains both of yalnie's fork commits (gles3compat
+  context + GL2_ShimGetProcAddress; cl_scrn levelshot guard + V_PostRender
+  transition fix). Engine = reference too.
+- The remaining delta from the working reference was MY client patch stack.
+
+Root cause: v0.4.0 made the GL_ARB_get_program_binary table resolve without
+glProgramParameteri "because gl4es doesn't export it". That ENABLED the
+shader disk cache on gl4es: programs restored via glProgramBinary have no
+gl4es-tracked shader sources, so program_t->last_vert is NULL. The first
+fixed-function state change on such a bound program (fog/alpha in the menu
+world) sends gl4es into fpe_CustomShader -> last_vert->source -> SEGV.
+The same source-less programs explain visual glitches: fixed-function state
+(fog, alpha test) that gl4es should bake into customized variants simply
+never gets applied to them.
+
+Fixes:
+- r_opengl.cpp: binaryshaderfuncs requires glProgramParameteri(ARB) again
+  (pointer bug stays fixed) — gl_binaryshader is now DISABLED on gl4es, all
+  programs compile from source = reference behavior. The game's precompile
+  pass is tied to the binary cache and skips itself (as on the reference).
+- gl4es fpe.c: fpe_CustomShader / fpe_CustomShader_DefaultVertex guard
+  against source-less programs and cache allocation failure — fall back to
+  the plain program instead of crashing (upstream still lacks this).
+- assets/particles: 4 placeholder DDS (fleck_wood1, fleck_dirt, glass_gib,
+  tile_gib) for textures referenced by particles.txt but absent from the
+  1.21 data — debris now renders instead of missing-texture checkers.
+- CI packs every assets/particles/*.dds into the libs zip.
+
+Kept (protective or diagnostic, none affect the crash path): capture-FX
+gating (options-menu readback cliff), dlight shadowless stubs, shader
+failure logging + negative cache (failed-only), mobile quality preset,
+engine lifecycle fixes from v0.4.3.
+
+Documented for the user: the APK also ships libref_gles3compat.so — if
+gl4es still misbehaves on this device, "gles3compat" can be tested via
+-ref on the command line.
