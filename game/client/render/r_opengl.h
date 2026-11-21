@@ -1297,6 +1297,7 @@ EXTERN void (APIENTRY *pglDeleteShader)(GLuint shader);
 EXTERN void (APIENTRY *pglLinkProgram)(GLuint program);
 EXTERN void (APIENTRY *pglUseProgram)(GLuint program);
 EXTERN void (APIENTRY *pglValidateProgram)(GLuint program);
+EXTERN GLboolean( APIENTRY *pglIsProgram )(GLuint program); // half-D: ARB-object wrapper needs it
 EXTERN GLhandleARB( APIENTRY *pglCreateProgram )(void);
 EXTERN void (APIENTRY *pglDeleteProgram)(GLuint program);
 EXTERN void (APIENTRY *pglGetShaderInfoLog)(GLuint shader, GLsizei maxLength, GLsizei *length, GLcharARB *infoLog);

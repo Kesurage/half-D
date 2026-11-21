@@ -25,7 +25,6 @@ GNU General Public License for more details.
 
 glState_t glState;
 glConfig_t glConfig;
-void (*pglHalfDGetMatrix)( GLenum mode, GLfloat *out ) = NULL; // half-D
 
 static void APIENTRY Stub_DrawBuffer( GLenum mode )
 {
@@ -368,6 +367,7 @@ static const dllfunc_t opengl_200funcs[] =
 { "glUseProgram"				, (void **)&pglUseProgram },
 { "glLinkProgram"				, (void **)&pglLinkProgram },
 { "glValidateProgram"			, (void **)&pglValidateProgram },
+{ "glIsProgram"					, (void **)&pglIsProgram }, // half-D: ARB-object wrapper
 { "glCreateProgram"				, (void **)&pglCreateProgram },
 { "glDeleteProgram"				, (void **)&pglDeleteProgram },
 { "glGetShaderInfoLog"			, (void **)&pglGetShaderInfoLog },
