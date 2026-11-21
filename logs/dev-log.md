@@ -432,3 +432,41 @@ Fixes:
 Everything else in v0.4.1 (capture-FX gate, negative shader cache,
 precompile filter, load timing) never got to run — the crash happened
 during client texture init. All of it carries into v0.4.2 unchanged.
+
+## 2026-11-22 — v0.4.3: the v0.4.2 crash = stale FS pool after in-process restart
+
+Device log (crash 01:03:26, build 1b7069b = v0.4.2): SEGV at 0x100 in
+FS_AddZip_Fullpath (zip.c:735) during FS_Rescan, preceded by
+"Mem_FindPool: not allocated or double freed pool 5" — with zero game
+frames run. Not my raindrop this time and not the game code at all.
+
+Mechanism, reconstructed from source:
+1. Memory_Init() at the top of every Host_InitCommon frees the ENTIRE
+   pool table and resets poolcount = 0 (in-process restart support).
+2. The engine was restarted within the same Android process (error
+   dialog / activity relaunch — the exact first error is unknown
+   because Sys_InitLog re-truncates engine.log in "w+" mode on every
+   non-changegame restart, erasing the previous lifetime's log).
+3. The relaunched engine ran on with the filesystem library still
+   holding fs_mempool = 5 from the previous lifetime — a handle past
+   the end of the fresh, smaller pool table.
+4. Mem_FindPool hit its "not allocated or double freed pool" path.
+   That Sys_Error is survivable-but-lethal: Host_ShutdownWithReason
+   early-outs (shutdown_issued is never reset after a restart), the
+   longjmp never fires, execution CONTINUES past the "fatal" error.
+5. Mem_Calloc returned NULL, FS_AddZip_Fullpath dereferenced the NULL
+   searchpath → SEGV at 0x100.
+
+Fix bundle (all defensive, all in the engine):
+- zone.c: Mem_FindPool no longer Sys_Errors on an invalid handle —
+  loud Con_Printf with a newline, return NULL, callers degrade.
+- filesystem.c FS_InitMemory: probe-validate the inherited pool handle
+  and take a fresh pool when stale (self-heal across restarts).
+- zip.c / dir.c / searchpath.c: every searchpath allocation is checked;
+  a failed mount now skips that archive/directory with a clear error
+  line naming the file instead of crashing.
+- host.c: reset host.shutdown_issued at init so a restarted engine can
+  actually shut down on its next fatal error.
+- sys_con.c: engine.log APPENDS when the engine restarts in-process,
+  so the next crash report will finally contain the ORIGINAL first
+  error instead of a truncated log.

@@ -90,6 +90,23 @@ void *_Mem_Alloc( poolhandle_t poolptr, size_t size, qboolean clear, const char 
 
 void FS_InitMemory( void )
 {
-	fs_mempool = Mem_AllocPool( "FileSystem Pool" );
+	// half-D: self-heal across in-process engine restarts. Memory_Init()
+	// resets the whole pool table at the top of every Host_InitCommon, so
+	// a pool handle kept from the previous engine lifetime can dangle past
+	// the end of the fresh table — every FS allocation would then fail
+	// (v0.4.2 device crash). Validate the old handle with a probe
+	// allocation and take a fresh pool if it is stale.
+	if( fs_mempool )
+	{
+		void *probe = Mem_Calloc( fs_mempool, 1 );
+		if( probe )
+			Mem_Free( probe );
+		else
+			fs_mempool = 0; // stale: pool table was reset under us
+	}
+
+	if( !fs_mempool )
+		fs_mempool = Mem_AllocPool( "FileSystem Pool" );
+
 	fs_searchpaths = NULL;
 }

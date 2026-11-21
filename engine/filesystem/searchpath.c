@@ -882,6 +882,16 @@ searchpath_t *FS_FindFile( const char *name, int *index, char *fixedname, size_t
 				FS_InitDirectorySearchpath( &fs_directpath, dirpath, 0 );
 			}
 
+			// half-D: directory cache alloc failed (stale-pool scenario,
+			// see FS_InitMemory) — treat as not found instead of risking
+			// a NULL deref through fs_directpath.dir
+			if( !fs_directpath.dir )
+			{
+				if( index != NULL )
+					*index = -1;
+				return NULL;
+			}
+
 			// just copy the name, we don't do case sensitivity fix there
 			if( fixedname )
 				Q_strncpy( fixedname, name, len );

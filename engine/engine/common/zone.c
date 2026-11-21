@@ -106,7 +106,16 @@ static mempool_t *Mem_FindPool( poolhandle_t poolptr )
 	if( likely( poolptr > 0 && poolptr <= poolcount ))
 		return &poolchain[poolptr - 1];
 
-	Sys_Error( "%s: not allocated or double freed pool %d", __func__, poolptr );
+	// half-D: an invalid pool handle must be survivable. The old Sys_Error
+	// here was fatal in a nastier way than the problem itself: the emergency
+	// shutdown it triggers can run while the engine is being restarted
+	// in-process (Memory_Init resets this pool table at the top of every
+	// Host_InitCommon), and execution then CONTINUED past the "fatal" error
+	// into NULL allocations — the v0.4.2 device crash: stale FileSystem
+	// pool handle 5, "not allocated or double freed pool 5", then SEGV at
+	// 0x100 in FS_AddZip_Fullpath. Report loudly with a newline, return
+	// NULL, let callers degrade gracefully.
+	Con_Printf( S_ERROR "%s: not allocated or double freed pool %d\n", __func__, poolptr );
 	return NULL;
 }
 

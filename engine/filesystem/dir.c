@@ -533,6 +533,15 @@ void FS_InitDirectorySearchpath( searchpath_t *search, const char *path, int fla
 
 	// create cache root
 	search->dir = Mem_Malloc( fs_mempool, sizeof( dir_t ));
+	if( !search->dir )
+	{
+		// half-D: a failed allocation must not leave a half-initialized
+		// searchpath behind. Reset it so callers can detect and skip
+		// (see FS_InitMemory for the stale-pool scenario this guards).
+		Con_Printf( S_ERROR "%s: out of memory for directory cache \"%s\"\n", __func__, path );
+		memset( search, 0, sizeof( searchpath_t ));
+		return;
+	}
 	Q_strncpy( search->dir->name, search->filename, sizeof( search->dir->name ));
 	FS_PopulateDirEntries( search->dir, path );
 }
@@ -541,7 +550,22 @@ searchpath_t *FS_AddDir_Fullpath( const char *path, int flags )
 {
 	searchpath_t *search = (searchpath_t *)Mem_Calloc( fs_mempool, sizeof( searchpath_t ));
 
+	if( !search )
+	{
+		// half-D: skip the directory instead of dereferencing a failed
+		// allocation (v0.4.2 device crash class: NULL searchpath -> SEGV)
+		Con_Printf( S_ERROR "%s: out of memory, skipping directory \"%s\"\n", __func__, path );
+		return NULL;
+	}
+
 	FS_InitDirectorySearchpath( search, path, flags );
+
+	if( !search->dir )
+	{
+		Mem_Free( search );
+		return NULL;
+	}
+
 	Con_Printf( "Adding directory: %s\n", path );
 
 	return search;

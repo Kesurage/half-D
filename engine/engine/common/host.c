@@ -1047,6 +1047,13 @@ static void Host_InitCommon( int argc, char **argv, const char *progname, qboole
 
 	Memory_Init(); // init memory subsystem
 
+	// half-D: a restart within the same process must be able to shut down
+	// again on a later error. shutdown_issued was never reset before, so
+	// every Sys_Error after a restart silently skipped the shutdown and
+	// RETURNED, leaving the engine running in a half-dead state (this is
+	// what let the v0.4.2 crash continue past a fatal pool error).
+	host.shutdown_issued = false;
+
 	host.mempool = Mem_AllocPool( "Zone Engine" );
 
 	host.allow_console = DEFAULT_ALLOWCONSOLE || DEFAULT_DEV > 0;

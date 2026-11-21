@@ -93,10 +93,19 @@ void Sys_InitLog( void )
 
 	s_ld.log_time = Sys_CheckParm( "-logtime" );
 
+	// half-D: if the log was already opened in this process (the engine
+	// restarted in-process after an error or quit), APPEND instead of
+	// truncating. The previous lifetime's log — including the error that
+	// caused the restart — is exactly what a crash report needs. The
+	// truncating "w+" mode erased it and hid the original error in the
+	// v0.4.2 crash investigation.
+	static qboolean log_reopened = false;
+
 	const char *mode;
-	if( host.change_game && host.type != HOST_DEDICATED )
+	if(( host.change_game && host.type != HOST_DEDICATED ) || log_reopened )
 		mode = "a+";
 	else mode = "w+";
+	log_reopened = true;
 
 	if( Host_IsDedicated( ))
 		Q_strncpy( s_ld.title, XASH_DEDICATED_SERVER_NAME " " XASH_VERSION, sizeof( s_ld.title ));

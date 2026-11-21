@@ -730,6 +730,16 @@ searchpath_t *FS_AddZip_Fullpath( const char *zipfile, int flags )
 	}
 
 	search = (searchpath_t *)Mem_Calloc( fs_mempool, sizeof( searchpath_t ) );
+	if( !search )
+	{
+		// half-D: never dereference a failed allocation. If the FS pool is
+		// unavailable (stale pool handle after an in-process engine restart,
+		// see FS_InitMemory), skip this archive instead of crashing the
+		// whole engine. This was the v0.4.2 device crash: SEGV at 0x100.
+		Con_Printf( S_ERROR "%s: out of memory, skipping zip \"%s\"\n", __func__, zipfile );
+		FS_CloseZIP( zip );
+		return NULL;
+	}
 	Q_strncpy( search->filename, zipfile, sizeof( search->filename ));
 	search->zip = zip;
 	search->type = SEARCHPATH_ZIP;
