@@ -160,3 +160,34 @@ source-verified:
    FiraSans-Regular.ttf (SIL OFL, `assets/fonts/`) into the libs zip at
    `diffusion/gfx/fonts/` since v0.1.2; tahoma stays a desktop-only fallback
    and the engine font fallback works regardless.
+
+## 9. v0.1.2 device log post-mortem: why -ref gl4es never reached the engine
+
+The v0.1.2 device log still showed `Loading renderer: gles1 -> libref_gles1.so`
+with no gl4es attempt at all. Root cause chain (all source-verified):
+
+1. The APK was fine: `classes.dex` in the released v0.1.2 APK contains the
+   patched default string (verified via strings on the artifact). The client
+   build date in the log matches the v0.1.2 CI run.
+2. But the launcher never used it: `Game.kt` builds argv as
+   `"-game diffusion" + pref.getString("arguments", "-console -log")` and
+   ALWAYS puts it as the `argv` intent extra — so `XashActivity`'s
+   `argv == null` fallback (where `-ref gl4es` lived) is dead code for every
+   normal launch. The engine command line therefore had no `-ref` at all.
+3. With no `-ref` and (on a fresh install) no `r_refdll`, the engine falls to
+   autodetect, whose hardcoded order starts with gles1 on Android
+   (R_CollectRendererNames in ref_common.c).
+4. Worse, after a successful gles1 load the engine WRITES `r_refdll gles1`
+   into video.cfg — so even passing `-ref` once wouldn't stick for future
+   launches; the saved cvar would keep winning over any launcher default.
+
+Fix (v0.1.3), layered so every launch path is covered:
+- engine C: on XASH_ANDROID try gl4es right after an explicit `-ref` argument
+  and BEFORE the saved r_refdll cvar (stale video.cfg can no longer win);
+  explicit `-ref` on the command line still overrides everything; failure
+  falls through to the normal cvar/autodetect chain.
+- launcher: Game.kt default arguments `-console -log -ref gl4es`.
+- XashActivity: null-argv default also `-console -log -ref gl4es`.
+- font: FiraSans-Regular.ttf now also ships as an APK asset and is extracted
+  to `<rodir>/<gamedir>/gfx/fonts/` at launch (v0.1.2 only put it in the
+  optional libs zip, which wasn't installed on the device).

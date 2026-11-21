@@ -21,6 +21,8 @@ import su.xash.engine.util.Prefs;
 import su.xash.engine.util.SoftKeyboardPan;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.List;
 
@@ -226,6 +228,28 @@ public class XashActivity extends SDLActivity {
 		}
 		Log.i(TAG, "XASH3D_RODIR = " + rodir);
 
+		// half-D: MainUI loads the menu font from the game's search paths
+		// (gfx/fonts/FiraSans-Regular.ttf) and the itch download doesn't ship
+		// it. Bundle it in the APK assets and extract it into the read-only
+		// game dir the engine already searches (<rodir>/<gamedir>/...).
+		// FiraSans is SIL OFL (assets/fonts/OFL.txt in the source tree).
+		try {
+			File fontDir = new File(rodir, gamedir + "/gfx/fonts");
+			File fontFile = new File(fontDir, "FiraSans-Regular.ttf");
+			if (!fontFile.exists() || fontFile.length() == 0) {
+				fontDir.mkdirs();
+				try (InputStream in = getAssets().open("gfx/fonts/FiraSans-Regular.ttf");
+				     FileOutputStream out = new FileOutputStream(fontFile)) {
+					byte[] buf = new byte[65536];
+					int n;
+					while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+				}
+				Log.i(TAG, "Extracted menu font to " + fontFile.getAbsolutePath());
+			}
+		} catch (Exception e) {
+			Log.w(TAG, "Could not extract menu font: " + e);
+		}
+
 		String pakfile = getIntent().getStringExtra("pakfile");
 		if (pakfile != null) nativeSetenv("XASH3D_EXTRAS_PAK2", pakfile);
 
@@ -249,7 +273,8 @@ public class XashActivity extends SDLActivity {
 		// half-D: default to the gl4es renderer — Diffusion's client-side
 		// renderer requires a desktop GL compatibility context (CONTEXT_TYPE_GL)
 		// and refuses GLES contexts outright. gl4es provides exactly that on
-		// top of GLES. The engine still auto-falls back to gles1 if it fails.
+		// top of GLES. The engine also hardcodes this fallback (ref_common.c),
+		// so this is only the first of three layers.
 		if (argv == null) argv = "-console -log -ref gl4es";
 
 		return argv.split(" ");

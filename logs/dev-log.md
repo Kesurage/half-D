@@ -99,3 +99,17 @@ renderer + its built-in FSR1 on the Mali-G57.
   Android work anywhere; PrimeXT Android is aspirational only.
 - v0.1.2 changes: launcher default argv `-ref gl4es`; PhysX FreePhysic null
   guard; FiraSans-Regular.ttf (OFL) bundled into the libs zip.
+
+## 2026-11-21 — v0.1.2 device log: launcher argv bug; gl4es forced at engine level
+
+- v0.1.2 device test: still gles1 + blank screen. The APK had the patch, but
+  Game.kt always passes a non-null argv built from prefs, so the XashActivity
+  default (with -ref gl4es) never fired; autodetect order starts at gles1 and
+  video.cfg now also carries a saved r_refdll gles1. Full chain in
+  PORTING_NOTES.md §9.
+- v0.1.3: gl4es forced in ref_common.c on Android (after explicit -ref, before
+  r_refdll), Game.kt + XashActivity defaults, and the menu font extracted from
+  APK assets into <rodir>/<gamedir>/gfx/fonts/ at launch.
+- Also: recurring workspace-restore glitch hit again between turns (local tree
+  reverted to fb6f94d with edits uncommitted) — recovered by rescuing edits,
+  hard-syncing to remote main, re-applying; pushed fast-forward on top.

@@ -802,6 +802,18 @@ qboolean R_Init( void )
 	if( Sys_GetParmFromCmdLine( "-ref", requested_cmdline ))
 		success = R_LoadRenderer( requested_cmdline, false );
 
+#if XASH_ANDROID
+	// half-D: Diffusion's client-side renderer only runs on a desktop GL
+	// compatibility context (CONTEXT_TYPE_GL), and on Android only ref_gl4es
+	// provides one. Try gl4es before the saved r_refdll so a video.cfg left
+	// over from the old GLES1 default cannot win (the launcher also passes
+	// -ref gl4es, but this covers every launch path: shortcuts, saved
+	// arguments, external intents). -ref on the command line still overrides;
+	// if gl4es fails to load, the normal cvar/autodetect flow continues below.
+	if( !success )
+		success = R_LoadRenderer( "gl4es", false );
+#endif
+
 	if( !success && !COM_StringEmptyOrNULL( r_refdll.string ) && Q_stricmp( requested_cmdline, r_refdll.string ))
 	{
 		Q_strncpy( requested_cvar, r_refdll.string, sizeof( requested_cvar ));

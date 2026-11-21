@@ -16,8 +16,22 @@
 
 ## Local changes (half-D fork)
 
-1. `android/app/src/main/java/su/xash/engine/XashActivity.java`: default launch
-   argv is now `-console -log -ref gl4es`. Diffusion's client-side renderer
-   requires a desktop GL compatibility context (CONTEXT_TYPE_GL) and exits on
-   GLES contexts; ref_gl4es provides that. Engine still auto-falls back to
-   gles1 if gl4es fails to init (ref_common.c renderer autodetect loop).
+Diffusion's client-side renderer requires a desktop GL compatibility context
+(CONTEXT_TYPE_GL); only ref_gl4es provides one on Android. v0.1.2 taught the
+launcher to pass `-ref gl4es`, but the launcher's Game.kt always sends a
+non-null argv (built from saved prefs), so that default never fired and the
+device still booted gles1. v0.1.3 forces gl4es at three layers:
+
+1. `engine/client/dll_int/ref_common.c`: on XASH_ANDROID, after an explicit
+   `-ref` argument (which still wins), try `gl4es` before the saved `r_refdll`
+   cvar — so a stale video.cfg cannot regress to gles1. If gl4es fails to
+   load, the normal cvar/autodetect flow continues (gles1 stays last resort).
+2. `android/.../model/Game.kt`: launcher default arguments now
+   `-console -log -ref gl4es` (covers fresh installs before any engine logic).
+3. `android/.../XashActivity.java`: null-argv fallback default also
+   `-console -log -ref gl4es` (covers external intents/shortcuts).
+4. `android/.../XashActivity.java`: extracts the bundled menu font
+   (assets/gfx/fonts/FiraSans-Regular.ttf, SIL OFL) into
+   `<rodir>/<gamedir>/gfx/fonts/` on launch — MainUI loads
+   `gfx/fonts/FiraSans-Regular.ttf` from the engine search paths and the itch
+   download doesn't ship it.
