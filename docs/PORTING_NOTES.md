@@ -191,3 +191,39 @@ Fix (v0.1.3), layered so every launch path is covered:
 - font: FiraSans-Regular.ttf now also ships as an APK asset and is extracted
   to `<rodir>/<gamedir>/gfx/fonts/` at launch (v0.1.2 only put it in the
   optional libs zip, which wasn't installed on the device).
+
+## 10. v0.1.3 device log post-mortem: shaders are GLSL 1.30-only by header, context is GL 2.1
+
+Huge progress in the v0.1.3 log: gl4es loaded (`GL4ES using Mali-G57 MC2`,
+GL_VERSION 2.1, GL_MAX_* limits all present), the client renderer's
+context-type check passed, and the crash moved into the game's own shader
+system: `Host_ErrorInit: assert failed at ../client/render/r_shader.cpp:1546`
+— the GenSunShafts uniform init got a NULL shader.
+
+Why NULL: GL_ProcessShader prepends `#version 130` to every shader it
+compiles. gl4es is a GL 2.1 context (GLSL 1.20 max) — a #version 130 shader
+cannot compile there, so every shader fails and the first init assert-fatal'd.
+
+Why the log showed no compile errors: the client's ALERT() returns early
+when developer_level == 0 — and our default argv had no -dev. Every
+"Couldn't compile" / info-log message was generated but silently dropped.
+(The glsl files were NOT missing: a missing file would also have logged, at
+the same silenced level — but the fix below logs that unconditionally now.)
+
+Fix (v0.1.4, game fork):
+- version chosen from glConfig.version: 130 only on GL 3.0+, else 120/110;
+  the shader sources themselves are classic GLSL 1.10 style (varying,
+  gl_FragColor, texture2D) so 120 works for the core world shaders;
+- `#define texture texture2D` injected below GL 3.0 (dronescreen and
+  waterdrops use the 130-era generic texture() call; waterdrops' bias
+  argument is legal for texture2D in fragment shaders);
+- shader failure/missing-file messages now print unconditionally via
+  Con_Printf, and the launcher passes -dev 2, so the next device log will
+  name any shader that still fails and why;
+- the 34 init-time uniform inits are guarded (if shader) — a failing
+  optional effect shader (SMAA, FSR, glitch, emboss, waterdrops...) is
+  skipped instead of crashing the game; the runtime compile loop and the
+  postprocess CheckShader guards already tolerate failed shaders;
+- known residual: smaa.h / emboss.h / glitch_fp.glsl / alpha2coverage.h use
+  textureLod/textureSize (GLSL 1.30+ only) — those effects will stay off on
+  GL 2.x until a follow-up compat pass; not needed for core rendering.

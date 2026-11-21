@@ -104,7 +104,7 @@ class Game(val ctx: Context, val basedir: File, val gameInfoFile: File, previous
 		// renderer requires a desktop GL compatibility context and refuses
 		// GLES ones. The engine also hardcodes this fallback (ref_common.c),
 		// so stale saved arguments cannot regress to gles1 either.
-		commandLineArgs += pref.getString("arguments", "-console -log -ref gl4es") ?: ""
+		commandLineArgs += pref.getString("arguments", "-console -log -dev 2 -ref gl4es") ?: ""
 
 		if (externalGame && packageNames != null) {
 			var packageName: String? = null

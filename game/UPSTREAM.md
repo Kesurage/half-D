@@ -15,3 +15,19 @@
      never initialized (m_pFoundation == nullptr, e.g. client aborts with
      Host_ErrorInit before a map loads) skip PxCloseExtensions(); calling it
      without a foundation crashed on device (signal 11 in PxCloseExtensions).
+
+  4. client/render/r_shader.cpp (v0.1.4, GL 2.x / gl4es compatibility):
+     GL_ProcessShader hardcoded `#version 130` on every shader; on GL 2.1
+     contexts (gl4es on Android) nothing compiles and the first shader init
+     assert-fatal'd the game. Now the version is picked from glConfig.version
+     (130 only on GL 3.0+, else 120/110) and `#define texture texture2D` is
+     injected below GL 3.0 (dronescreen/waterdrops use the 130-era generic
+     texture() call). Also: shader compile/link failures and missing shader
+     files now log unconditionally (ALERT is silent without -dev, which hid
+     every failure in engine.log), the 34 init-time uniform inits are guarded
+     so a failed optional effect shader (SMAA, FSR, glitch, emboss...) skips
+     instead of crashing (runtime paths already guard via CheckShader), and
+     the Android launcher passes -dev 2 so device logs carry diagnostics.
+     Known residual: smaa.h/emboss.h/glitch_fp/alpha2coverage.h use
+     textureLod/textureSize (GLSL 1.30+) — those effects stay broken on
+     GL 2.x until a compat pass; the core world shaders are pure GLSL 1.10.

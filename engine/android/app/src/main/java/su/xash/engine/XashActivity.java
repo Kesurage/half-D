@@ -275,7 +275,7 @@ public class XashActivity extends SDLActivity {
 		// and refuses GLES contexts outright. gl4es provides exactly that on
 		// top of GLES. The engine also hardcodes this fallback (ref_common.c),
 		// so this is only the first of three layers.
-		if (argv == null) argv = "-console -log -ref gl4es";
+		if (argv == null) argv = "-console -log -dev 2 -ref gl4es";
 
 		return argv.split(" ");
 	}

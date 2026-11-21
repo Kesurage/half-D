@@ -113,3 +113,16 @@ renderer + its built-in FSR1 on the Mali-G57.
 - Also: recurring workspace-restore glitch hit again between turns (local tree
   reverted to fb6f94d with edits uncommitted) — recovered by rescuing edits,
   hard-syncing to remote main, re-applying; pushed fast-forward on top.
+
+## 2026-11-21 — v0.1.3 device log: shaders demanded #version 130 on a GL 2.1 context
+
+- v0.1.3 device test: gl4es finally loaded and the renderer context check
+  passed; crash moved to assert r_shader.cpp:1546 (GenSunShafts NULL).
+- Root cause: GL_ProcessShader hardcodes #version 130; gl4es = GL 2.1 →
+  every shader fails to compile. Errors invisible because ALERT() is a no-op
+  without -dev (our default argv had none).
+- v0.1.4 (game fork): version picked from glConfig.version (130/120/110),
+  texture()→texture2D define below GL 3.0, unconditional failure logging,
+  -dev 2 in launcher defaults, 34 guarded uniform inits so a failed optional
+  effect shader skips instead of fatal. Residual GLSL-130-only effects
+  (SMAA/FSR/glitch/emboss via textureLod/textureSize) documented as off.
