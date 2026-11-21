@@ -47,7 +47,16 @@ snd_globals_t snd =
 static CVAR_DEFINE( s_volume, "volume", "0.7", FCVAR_ARCHIVE|FCVAR_FILTERABLE, "sound volume" );
 CVAR_DEFINE( s_musicvolume, "MP3Volume", "1.0", FCVAR_ARCHIVE|FCVAR_FILTERABLE, "background music volume" );
 CVAR_DEFINE( s_musicfadetime, "MP3FadeTime", "2.0", FCVAR_ARCHIVE|FCVAR_FILTERABLE, "background music fade out time in seconds for \"cd fadeout\" command" );
-static CVAR_DEFINE( s_mixahead, "_snd_mixahead", "0.12", FCVAR_FILTERABLE, "how much sound to mix ahead of time" );
+// half-D: with frames at ~140 ms on the low-fps device build, the default
+// 0.12 s mixahead underruns the DMA buffer every frame (the audio
+// "glitching"). Mix 0.3 s ahead on android: +180 ms latency, no underruns
+// down to ~3 fps.
+#if XASH_ANDROID
+#define SND_MIXAHEAD_DEFAULT "0.3"
+#else
+#define SND_MIXAHEAD_DEFAULT "0.12"
+#endif
+static CVAR_DEFINE( s_mixahead, "_snd_mixahead", SND_MIXAHEAD_DEFAULT, FCVAR_FILTERABLE, "how much sound to mix ahead of time" );
 static CVAR_DEFINE_AUTO( s_show, "0", FCVAR_ARCHIVE|FCVAR_FILTERABLE, "show playing sounds" );
 CVAR_DEFINE_AUTO( s_lerping, "0", FCVAR_ARCHIVE|FCVAR_FILTERABLE, "apply interpolation to sound output" );
 static CVAR_DEFINE( s_ambient_level, "ambient_level", "0.3", FCVAR_ARCHIVE|FCVAR_FILTERABLE, "volume of environment noises (water and wind)" );

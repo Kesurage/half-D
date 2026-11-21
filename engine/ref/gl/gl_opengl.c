@@ -730,6 +730,16 @@ static void R_RenderInfo( qboolean startup )
 	gEngfuncs.Con_Printf( "GL_RENDERER: %s\n", glConfig.renderer_string );
 	gEngfuncs.Con_Printf( "GL_VERSION: %s\n", glConfig.version_string );
 
+	// half-D diagnostics: the Diffusion client renderer silently changes
+	// behavior (terrain multi-layer via texture arrays, bitwise hashing,
+	// shadow comparisons) depending on which of these the GL wrapper
+	// actually exposes — print them so device logs explain what ran
+	gEngfuncs.Con_Printf( "GL caps: texture_array %s, gpu_shader4 %s, shadow_samplers %s, draw_buffers %s\n",
+		Q_stristr( glConfig.extensions_string, "GL_EXT_texture_array" ) ? "yes" : "no",
+		Q_stristr( glConfig.extensions_string, "GL_EXT_gpu_shader4" ) ? "yes" : "no",
+		( Q_stristr( glConfig.extensions_string, "GL_EXT_shadow_samplers" ) || Q_stristr( glConfig.extensions_string, "GL_ARB_shadow" )) ? "yes" : "no",
+		Q_stristr( glConfig.extensions_string, "GL_EXT_draw_buffers" ) ? "yes" : "no" );
+
 	// don't spam about extensions
 	gEngfuncs.Con_Reportf( "GL_EXTENSIONS: %s\n", glConfig.extensions_string );
 

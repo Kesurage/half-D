@@ -161,3 +161,12 @@
      Kept ours: engine/ (launcher, gl4es forcing, APK asset layer), build
      glue, CI. Re-applied on top: MAXSTUDIOBONES macro-redefinition guard
      (r_shader.cpp), gl_mobile_quality preset (view.cpp).
+
+  23. (v0.2.5) Re-applied post-merge on yalnie's tree: perf heartbeat in
+     r_main.cpp (5 s fps/frame-ms/poly stats, 150 ms spike logging) +
+     gl_diag cvar (r_cvars.h/view.cpp); preset v2 adds r_grass/r_grass_
+     lighting off and gl_fsr 1 (FSR1 upscale instead of bilinear at 0.85
+     renderscale); engine _snd_mixahead default 0.3 on android (0.12
+     underruns every frame below ~8 fps — the reported audio glitching);
+     ref logs texture_array/gpu_shader4/shadow_samplers/draw_buffers caps
+     at init (to attribute missing terrain layers / shadow fallbacks).

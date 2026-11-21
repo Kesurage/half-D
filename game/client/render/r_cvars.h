@@ -54,6 +54,8 @@ extern cvar_t	*r_lighting_extended;
 extern cvar_t	*r_cached_box_culling;
 extern cvar_t	*r_polyoffset;
 extern cvar_t	*r_grass;
+extern cvar_t	*gl_diag;      // half-D: perf heartbeat gate
+extern cvar_t	*gl_mobile_quality; // half-D: mobile quality preset
 extern cvar_t	*r_grass_lighting;
 extern cvar_t	*r_grass_shadows;
 extern cvar_t	*r_grass_fade_start;

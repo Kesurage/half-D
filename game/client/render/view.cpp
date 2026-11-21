@@ -114,6 +114,7 @@ cvar_t *r_grass;
 cvar_t *r_grass_lighting;
 cvar_t *r_grass_shadows;
 cvar_t *gl_mobile_quality;
+cvar_t *gl_diag;
 cvar_t *r_grass_fade_start;
 cvar_t *r_grass_fade_dist;
 cvar_t *r_show_renderpass;
@@ -467,6 +468,7 @@ void V_Init( void )
 	ui_videooptions_active = CVAR_REGISTER( "ui_videooptions_active", "0", FCVAR_UNLOGGED );
 	ui_forcenoblur = CVAR_REGISTER( "ui_forcenoblur", "0", FCVAR_UNLOGGED );
 	gl_mobile_quality = CVAR_REGISTER( "gl_mobile_quality", "1", FCVAR_ARCHIVE );
+	gl_diag = CVAR_REGISTER( "gl_diag", "1", FCVAR_ARCHIVE );
 	cl_background = CVAR_GET_POINTER( "cl_background" );
 }
 
@@ -491,7 +493,10 @@ void V_VidInit( void )
 		gl_allow_portals->value = 0.0f;       // portal recursion
 		r_mirrorquality->value = 1.0f;
 		r_blur->value = 0.0f;                 // DoF blur
-		ConPrintf( "renderer: mobile quality preset applied (gl_mobile_quality 1)\n" );
+		r_grass->value = 0.0f;                // grass geometry pass (default 1!)
+		r_grass_lighting->value = 0.0f;       // per-blade lighting
+		gl_fsr->value = 1.0f;                 // FSR1 upscale instead of bilinear at 0.85
+		ConPrintf( "renderer: mobile quality preset v2 applied (gl_mobile_quality 1)\n" );
 	}
 
 	PrevViewAngles = g_vecZero;

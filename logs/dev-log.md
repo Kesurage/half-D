@@ -277,3 +277,16 @@ v0.1.6 remains the current release awaiting a real report.
   into game/, kept our engine/build/CI, re-applied MAXSTUDIOBONES guard +
   mobile quality preset on top of his files.
 - validate_gl130.py sweep: 384/384 permutations clean under desktop 130.
+
+## 2026-11-21 — v0.2.5: post-merge fix round
+
+- v0.2.4 device log: graphics stable, shaders clean, preset applied.
+  7 fps + audio glitch + shimmer + some missing textures.
+- Audio = _snd_mixahead 0.12 < 140ms frames -> per-frame underruns.
+  Android default now 0.3.
+- Heartbeat restored (merge wiped it); preset v2: r_grass 0,
+  r_grass_lighting 0 (defaults 1 in his tree — a per-frame grass pass the
+  preset never covered), gl_fsr 1 for the 0.85 upscale (vs bilinear
+  shimmer).
+- GL caps line added at ref init (texture_array etc.) to attribute the
+  missing-texture/terrain-layer question next log.

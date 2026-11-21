@@ -503,3 +503,23 @@ engine and build integration, re-applied our two render-layer fixes he
 lacked (MAXSTUDIOBONES redefinition guard, gl_mobile_quality preset).
 New offline sweep: scripts/validate_gl130.py — all 384 permutations
 compile clean under desktop GLSL 1.30 (the grammar gl4es receives).
+
+## 21. v0.2.5: first post-merge device log — stable at last, now perf
+
+The v0.2.4 log is a milestone: zero GLSL errors, every shader compiles,
+graphics STABLE. Remaining issues from the log:
+
+1. 7 fps with no heartbeat lines — the merge had wiped our r_main.cpp
+   diagnostics. Restored. The preset also missed two heavy defaults in
+   yalnie's tree: r_grass and r_grass_lighting default 1 (a grass
+   geometry pass every frame). Preset v2 turns both off and switches the
+   0.85 renderscale upscale from bilinear to FSR1 (his tree ships
+   EASU/RCAS; the shimmering is almost certainly the bilinear upscale).
+2. Audio glitching mechanism CONFIRMED by code: engine mixes
+   _snd_mixahead 0.12 s ahead, but 7-fps frames take ~0.14 s — the DMA
+   buffer underruns every single frame. Android default now 0.3.
+3. "Some textures won't load": no texture errors logged — suspect the
+   terrain multi-layer path falling back when gl4es doesn't expose
+   GL_EXT_texture_array. Ref now prints the caps line at init; the next
+   log settles it. (Missing car models + HL1 sounds remain mod content,
+   not the port.)
