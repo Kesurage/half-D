@@ -112,3 +112,51 @@ not found`. Source-verified cause and fix (engine `engine/platform/android/lib_a
    Android libs for known games; nothing for Diffusion). `armeabi-v7a` game
    libs are not built — v7a phones get the engine but no game code (device is
    arm64; documented, not a goal for M1).
+## 8. Renderer research — what Diffusion's renderer actually needs (v0.1.1 device test round 2)
+
+v0.1.1 booted the game code (server + client DLLs load, all engine extensions
+active) and then failed at `Host_ErrorInit: This game requires the OpenGL
+renderer. GLES and OpenGL Core contexts are not supported.` Findings, all
+source-verified:
+
+1. **Architecture**: the renderer is compiled INTO the client DLL
+   (`client/render/r_opengl.cpp`, Uncle Mike's Xash custom renderer lineage,
+   GPL-3.0). It does not draw through the engine's renderer module; it only
+   borrows the context the engine's ref module created and then runs its own
+   GL 2.0-class pipeline. It rejects anything but `CONTEXT_TYPE_GL`
+   (desktop compatibility profile; even GL Core is refused).
+2. **Hard requirements** (renderer disables itself without them): GL 1.1+2.0
+   function sets, draw_range_elements, ARB_multitexture, ARB_vertex_buffer_object,
+   ARB_vertex_array_object, ARB_shader_objects, ARB_shading_language_100,
+   ARB_vertex_shader, ARB_fragment_shader, ≥32 bones of vertex-uniform skinning.
+   **Optional** (features degrade with warnings): EXT_texture_array (landscapes),
+   occlusion queries, EXT_gpu_shader4 (omni shadows), depth_texture/shadow
+   (dynamic shadows), FBO, program_binary.
+3. **Shaders**: all 74 files in `glsl/` are GLSL 1.10 (no `#version` at all) —
+   trivially convertible to GLSL ES in Phase R1 (no 120/130-only features to
+   untangle first).
+4. **Renderer selection**: engine tries `-ref <name>` cmdline, then `r_refdll`
+   cvar (saved in `video.cfg` in the base dir), then autodetect (gles1 first on
+   Android, which is why v0.1.1 used it).
+5. **Route A — gl4es (v0.1.2, immediate)**: `ref_gl4es` is the engine's `ref/gl`
+   built against gl4es, so `GL_InitExtensionsBigGL` reports CONTEXT_TYPE_GL —
+   exactly what the game demands. Vendored gl4es implements VAOs (advertises
+   GL_ARB_vertex_array_object, `src/gl/buffers.c`), VBOs, GLSL 110/120 →
+   GLES translation. Our APK already ships `libref_gl4es.so`. Risks: translation
+   overhead on a Mali-G57, possible gaps in FBO-heavy paths. Default since
+   v0.1.2 via launcher argv `-ref gl4es`.
+6. **Route B — native GLES3 renderer (Phase R1, the real fix)**: port
+   `client/render` to GLES 3.0 + GLSL ES 300. The 110-only shader set makes
+   this mostly mechanical (baked matrices → uniforms, fixed-function bits
+   already gone). This is the performance/quality path; scoped in the roadmap.
+7. **Ecosystem check (2026-11-21)**: Aynekko's GitHub (8 repos) has no Android
+   work — `Diffusion-executable` is only the branded Windows launcher stub, no
+   engine patches. PrimeXT (same SDK lineage, same client-side-renderer +
+   PhysX profile) lists an Android port as an unfinished goal with no GLES
+   strategy published. Nothing to reuse; half-D's Route B remains the
+   differentiator.
+8. **Fonts** (same device log): MainUI requests `gfx/fonts/FiraSans-Regular.ttf`
+   (fallback `tahoma.ttf`, which we cannot redistribute — MS font). We bundle
+   FiraSans-Regular.ttf (SIL OFL, `assets/fonts/`) into the libs zip at
+   `diffusion/gfx/fonts/` since v0.1.2; tahoma stays a desktop-only fallback
+   and the engine font fallback works regardless.

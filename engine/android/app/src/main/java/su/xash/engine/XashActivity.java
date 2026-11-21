@@ -246,7 +246,11 @@ public class XashActivity extends SDLActivity {
 		}
 
 		String argv = getIntent().getStringExtra("argv");
-		if (argv == null) argv = "-console -log";
+		// half-D: default to the gl4es renderer — Diffusion's client-side
+		// renderer requires a desktop GL compatibility context (CONTEXT_TYPE_GL)
+		// and refuses GLES contexts outright. gl4es provides exactly that on
+		// top of GLES. The engine still auto-falls back to gles1 if it fails.
+		if (argv == null) argv = "-console -log -ref gl4es";
 
 		return argv.split(" ");
 	}

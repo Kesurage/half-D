@@ -272,11 +272,23 @@ releases the scene, cooking, dispatcher, physics and foundation and clears all h
 */
 void CPhysicPhysX :: FreePhysic( void )
 {
+	// half-D: physics may be torn down without ever being initialized
+	// (e.g. the client aborts with Host_ErrorInit before a map loads).
+	// PxCloseExtensions() without a live foundation triggers PhysX's error
+	// reporter and crashed on device (signal 11, PxCloseExtensions.cpp).
+	if (!m_pFoundation) {
+		m_pScene = nullptr;
+		m_pCooking = nullptr;
+		m_pPhysics = nullptr;
+		m_pVisualDebugger = nullptr;
+		return;
+	}
+
 	if (m_pScene) { m_pScene->release(); }
 	if (m_pCooking) { m_pCooking->release(); }
 	if (m_pDispatcher) { m_pDispatcher->release(); }
 	if (m_pPhysics) { m_pPhysics->release(); }
-	if (m_pVisualDebugger) 
+	if (m_pVisualDebugger)
 	{
 		PxPvdTransport *transport = m_pVisualDebugger->getTransport();
 		m_pVisualDebugger->release();

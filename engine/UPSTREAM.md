@@ -13,3 +13,11 @@
   glslang/opengnm not vendored (unused by the Android build).
 - Diffusion tracks FWGS master (Aynekko's CI pulls the continuous AppImage), so
   this pin is our baseline.
+
+## Local changes (half-D fork)
+
+1. `android/app/src/main/java/su/xash/engine/XashActivity.java`: default launch
+   argv is now `-console -log -ref gl4es`. Diffusion's client-side renderer
+   requires a desktop GL compatibility context (CONTEXT_TYPE_GL) and exits on
+   GLES contexts; ref_gl4es provides that. Engine still auto-falls back to
+   gles1 if gl4es fails to init (ref_common.c renderer autodetect loop).

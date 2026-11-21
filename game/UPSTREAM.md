@@ -11,3 +11,7 @@
 - Content (maps, models, sounds) is NOT here; it comes from the itch.io v1.21
   download. The glsl/ folder IS vendored (shaders ship with the game folder).
 - discord-rpc submodule: present but unused on Android (desktop only).
+  3. server/physics/physx/physx_impl.cpp: FreePhysic() guard — if PhysX was
+     never initialized (m_pFoundation == nullptr, e.g. client aborts with
+     Host_ErrorInit before a map loads) skip PxCloseExtensions(); calling it
+     without a foundation crashed on device (signal 11 in PxCloseExtensions).

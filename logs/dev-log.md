@@ -85,3 +85,17 @@ renderer + its built-in FSR1 on the Mali-G57.
   `needs: game-libs` and bakes the three libs into jniLibs/arm64-v8a (menu as
   libmenu.so = the engine's bare fallback name). APK self-contained now.
 - Docs updated (WHAT_TO_DOWNLOAD.md: v0.1.1 flow, lib names; PORTING_NOTES §7).
+## 2026-11-21 — v0.1.1 device test round 2: game code runs; renderer is the wall
+
+- Log (logs/device-tests/): server DLL loaded ("Dll loaded for game Diffusion
+  1.21"), all engine extensions active, client DLL loaded, video/audio/touch
+  fine — then `Host_ErrorInit: This game requires the OpenGL renderer` at
+  client R_Init. Secondary crash: PhysX PxCloseExtensions during error
+  shutdown (physics never initialized → no foundation).
+- Renderer research (source + web) written up in PORTING_NOTES.md §8: needs
+  desktop GL compat context, GL 2.0 + VBO/VAO/shader_objects, GLSL 110 (all 74
+  shaders), ref_gl4es reports CONTEXT_TYPE_GL and implements VAOs → chosen as
+  immediate route; native GLES3 port = Phase R1 unchanged. Aynekko has no
+  Android work anywhere; PrimeXT Android is aspirational only.
+- v0.1.2 changes: launcher default argv `-ref gl4es`; PhysX FreePhysic null
+  guard; FiraSans-Regular.ttf (OFL) bundled into the libs zip.

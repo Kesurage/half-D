@@ -54,6 +54,9 @@ binaries: `diffusion/bin/libclient_android_arm64.so`,
 `libserver_android_arm64.so` (PhysX inside), `libmenu_android_arm64.so` —
 `lib` prefix is mandatory on Android (since v0.1.1; the engine's loader
 generates exactly these names), and the same three ship inside the APK.
+Since v0.1.2 the zip also carries `gfx/fonts/FiraSans-Regular.ttf` (the menu
+font, SIL OFL) and the APK defaults to the gl4es renderer — the game's
+custom renderer requires a desktop-GL context, which gl4es emulates.
 
 ## Development machine
 
