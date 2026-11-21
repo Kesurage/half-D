@@ -116,3 +116,13 @@
      GLES2 path through gl4es) has no implicit int->float conversion, so
      every BMODEL_INTERIOR / BMODEL_WATER_REFRACTION permutation failed
      with S0001 — the invisible terrain. Made them float literals.
+
+  17. glsl (v0.2.2): interior.h called randomFunction2( 1, ... ) 26 times
+     with an int literal for a float parameter ('S0001: No matching
+     overload' on strict GLSL ES 1.00 — overload resolution has no
+     implicit conversions either); mix( 0, ... ) twice in grassdlight/
+     studiodecal. Float literals now.
+  18. engine (v0.2.2): load-stage timing in SV_SpawnServer/SV_ActivateServer
+     — world model, submodels, game-DLL activate (precache+spawn), settle
+     frames each print a duration, to attribute the 32-36 s chapter loads
+     seen in the v0.2.1 device log.

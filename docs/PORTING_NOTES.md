@@ -428,3 +428,27 @@ sequence lerping — needs the heartbeat data), two missing car models
 sounds (mod references sounds it doesn't ship), and chapter-transition
 save probes (save/ch1map1a.HL1 'couldn't open' — the game probes
 optional saves, seems benign, watching it).
+
+## 18. v0.2.1 post-mortem: the heartbeat pays off
+
+First instrumented run. The negative cache works (0 suppressed retries —
+each broken permutation compiles once per session), fps is now legible:
+12-17 fps at 80-100k studio polys, 24-34 fps at 25-35k, 49 fps idle.
+Studio geometry (epoly) is the dominant frame cost; the animated menu
+background alone draws 280k studio polys. Two new facts:
+
+1. The interior shaders progressed exactly one bug deeper:
+   'No matching overload for randomFunction2' — 26 calls pass the int
+   literal 1 for a float seed parameter. ES 1.00 overload resolution
+   does no implicit conversions either. Fixed, plus two mix(0,...)
+   sites found by the same sweep.
+
+2. Chapter loads take 32-36 SECONDS (single-frame spikes). Added
+   engine-side load-stage timing (world model, submodels, game-DLL
+   activate, settle frames) — the next log will say which stage eats
+   it. Suspects: thousands of small file opens through Android FUSE
+   storage, or model/sound processing in the game DLL precache.
+
+Still open: glitchy character animations (needs a look once the ground
+renders — may be timing starvation at 12 fps), missing car models and
+HL1 pain sounds (mod content, not the port), chapter-save probes.

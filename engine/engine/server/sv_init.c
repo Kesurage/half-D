@@ -594,8 +594,11 @@ void SV_ActivateServer( int runPhysics )
 	SV_FreeOldEntities ();
 
 	// Activate the DLL server code
+	// half-D: load-stage timing — game DLL precache + entity spawn
+	double activateT0 = Platform_DoubleTime();
 	svgame.globals->time = sv.time;
 	svgame.dllFuncs.pfnServerActivate( svgame.edicts, svgame.numEntities, svs.maxclients );
+	Con_Printf( "load: game activate (precache+spawn of %i entities) in %.2f s\n", svgame.numEntities, Platform_DoubleTime() - activateT0 );
 
 	SV_SetStringArrayMode( true );
 
@@ -623,8 +626,12 @@ void SV_ActivateServer( int runPhysics )
 	}
 
 	// run some frames to allow everything to settle
+	double settleT0 = Platform_DoubleTime();
+
 	for( i = 0; i < numFrames; i++ )
 		SV_Physics();
+
+	Con_Printf( "load: %i settle frames in %.2f s\n", numFrames, Platform_DoubleTime() - settleT0 );
 
 	// create a baseline for more efficient communications
 	SV_CreateBaseline();
@@ -1033,8 +1040,13 @@ qboolean SV_SpawnServer( const char *mapname, const char *startspot, qboolean ba
 
 	Q_snprintf( sv.model_precache[WORLD_INDEX], sizeof( sv.model_precache[0] ), "maps/%s.bsp", sv.name );
 	SetBits( sv.model_precache_flags[WORLD_INDEX], RES_FATALIFMISSING );
+	// half-D: load-stage timing — the device log showed 32-36 s chapter
+	// loads and we need to know which stage eats it
+	double loadT0 = Platform_DoubleTime();
+
 	sv.worldmodel = sv.models[WORLD_INDEX] = Mod_LoadWorld( sv.model_precache[WORLD_INDEX], true );
 	CRC32_MapFile( &sv.worldmapCRC, sv.model_precache[WORLD_INDEX], svs.maxclients > 1 );
+	Con_Printf( "load: world model loaded in %.2f s\n", Platform_DoubleTime() - loadT0 );
 
 	if( FBitSet( host.features, ENGINE_QUAKE_COMPATIBLE ) && FS_FileExists( "progs.dat", false ))
 	{
@@ -1050,6 +1062,8 @@ qboolean SV_SpawnServer( const char *mapname, const char *startspot, qboolean ba
 		sv.models[i+1] = Mod_ForName( sv.model_precache[i+1], false, false );
 		SetBits( sv.model_precache_flags[i+1], RES_FATALIFMISSING );
 	}
+
+	Con_Printf( "load: %i submodels linked in %.2f s\n", sv.worldmodel->numsubmodels - WORLD_INDEX, Platform_DoubleTime() - loadT0 );
 
 	// leave slots at start for clients only
 	for( i = 0; i < svs.maxclients; i++ )

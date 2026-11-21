@@ -241,3 +241,16 @@ v0.1.6 remains the current release awaiting a real report.
   heartbeat, >150ms spike lines, gl_diag cvar default-on.
 - Syntax-checked r_shader.cpp/r_main.cpp locally with g++ -fsyntax-only
   (clean) before pushing to CI.
+
+## 2026-11-21 — v0.2.2: 26 ones and a stopwatch
+
+- v0.2.1 device log: perf heartbeat is in and instantly useful. Fps
+  now legible: epoly-bound (12-17 fps @ 80-100k studio polys; 49 fps
+  idle). Negcache effective (0 retries). Two 32-36 s single-frame
+  spikes = chapter loads.
+- Interior shaders: staticSeed fix moved the failure one bug deeper to
+  randomFunction2( 1, ... ) x26 — int literal for a float param; ES 1.00
+  overload resolution does no implicit conversions. Fixed + 2 mix(0,).
+- Engine: load-stage timing in SV_SpawnServer/SV_ActivateServer
+  (world, submodels, game activate, settle frames) to attribute the
+  36 s loads next run.
