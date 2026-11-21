@@ -2219,6 +2219,8 @@ if we don't want draw from
 the client (e.g. playersetup preview)
 ===============
 */
+extern cvar_t *gl_diag;  // half-D: registered in view.cpp
+
 // half-D: per-stage frame timing, accumulated in HUD_RenderFrame and
 // reported as averages by the perf heartbeat window
 static float r_diag_ms_cubemaps = 0, r_diag_ms_animatex = 0;
