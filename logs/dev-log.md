@@ -153,3 +153,13 @@ renderer + its built-in FSR1 on the Mali-G57.
 - v0.1.6 (game fork): StudioLoadTBN always returns false (regenerate TBN
   in-process), dml/TBN sanity checks downgraded to warnings, missing
   j != MAXSTUDIOMODELS bounds guard added before dml->submodels[j].
+
+## 2026-11-21 — round 7 report: wrong log attached (no half-D data)
+
+User reported "crashed again" but attached mh4u-log.zip — a diagnostic from
+a different app (com.mh4u.native, Monster Hunter 4 Ultimate port, v1.0.1.1)
+on a different phone (Infinix X6882, Helio G99), captured 2026-11-20 08:43
+(before v0.1.5 even shipped). No Xash/Diffusion strings, no crash markers —
+the app exits in it are clean swipe-ups. Nothing to diagnose from it; asked
+for the half-D crash zip (auto-packages engine.log) or the engine.log file.
+v0.1.6 remains the current release awaiting a real report.
