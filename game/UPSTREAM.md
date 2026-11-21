@@ -49,3 +49,13 @@
      print the driver info log unconditionally via Con_Printf — ALERT()/Msg()
      are gated by developer level and v0.1.4's engine.log showed 'shader X
      failed to compile/link' with no error text at all.
+
+  8. client/render/r_studio.cpp (v0.1.6): StudioLoadTBN never loads
+     cache/<model>.tbn from disk — the shipped desktop-generated caches have
+     submodel vertex offsets that don't match this build, and the sanity
+     assert in StudioCreateMeshCache (r_studio.cpp:1733) fatal'd the game
+     during map load. TBN data is now always regenerated (deterministic,
+     in-process). The vertex-light sanity checks at the same site are
+     downgraded to non-fatal warnings, and the dml block got the missing
+     j != MAXSTUDIOMODELS guard (the old ASSERT indexed submodels[j] out of
+     bounds when the offset search failed).

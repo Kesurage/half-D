@@ -139,3 +139,17 @@ renderer + its built-in FSR1 on the Mali-G57.
   GLSL ES 1.00, which is what gl4es feeds the Mali driver.
 - v0.1.5: OOB guard, const-in sweep, mathlib float casts, unconditional
   shader compile/link diagnostics (driver info log now always in engine.log).
+
+## 2026-11-21 — v0.1.5 device crash: desktop-generated .tbn studio caches
+
+- Screenshot-only report: assert r_studio.cpp:1733 (TBN sanity in
+  StudioCreateMeshCache). The itch package ships cache/*.tbn files from
+  the author's Windows build; they pass ident/version/CRC but their
+  submodel vertex offsets don't match this build → assert at map load.
+- Workspace glitch struck again: half-d tree was reset to the v0.1.0-era
+  commit fb6f94d with all v0.1.1-v0.1.5 work gone locally. Everything was
+  pushed though — recovered via fetch+reset to d91c784, re-applied the
+  v0.1.6 patch cleanly.
+- v0.1.6 (game fork): StudioLoadTBN always returns false (regenerate TBN
+  in-process), dml/TBN sanity checks downgraded to warnings, missing
+  j != MAXSTUDIOMODELS bounds guard added before dml->submodels[j].
