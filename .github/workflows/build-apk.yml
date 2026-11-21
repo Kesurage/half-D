@@ -12,10 +12,29 @@ env:
 
 jobs:
   engine-apk:
-    name: Engine fork APK (armv7 + arm64)
+    name: Engine fork APK (armv7 + arm64, game libs bundled in arm64)
     runs-on: ubuntu-latest
+    needs: game-libs   # game libs are baked into the APK's lib/arm64-v8a
     steps:
     - uses: actions/checkout@v4
+
+    - name: Get game libs from the game-libs job
+      uses: actions/download-artifact@v4
+      with:
+        name: diffusion-android-libs
+        path: game-libs
+
+    - name: Bundle game libraries into APK jniLibs (arm64-v8a)
+      # ANDROID_LoadLibrary falls back to dlopen(name) = APK nativeLibraryDir,
+      # so the game client/server/menu ship inside the APK under the names
+      # the engine requests (see docs/PORTING_NOTES.md, "Android library loading")
+      run: |
+        mkdir -p engine/android/app/src/main/jniLibs/arm64-v8a
+        unzip -q game-libs/diffusion-android-aarch64-libs.zip -d gamelibs
+        cp gamelibs/diffusion/bin/libserver_android_arm64.so  engine/android/app/src/main/jniLibs/arm64-v8a/
+        cp gamelibs/diffusion/bin/libclient_android_arm64.so  engine/android/app/src/main/jniLibs/arm64-v8a/
+        cp gamelibs/diffusion/bin/libmenu_android_arm64.so     engine/android/app/src/main/jniLibs/arm64-v8a/libmenu.so
+        ls -lh engine/android/app/src/main/jniLibs/arm64-v8a/
 
     - uses: actions/setup-java@v4
       with:
@@ -108,6 +127,17 @@ jobs:
       run: |
         cd game
         python3 waf build install --destdir=out 2>&1 | tee build.log || { tail -80 build.log; exit 1; }
+
+    - name: Rename libs to engine Android naming (lib prefix)
+      # COM_GenerateCommonLibraryName on Android produces lib<name>_android_arm64.so;
+      # our v0.1.0 zip shipped client_android_arm64.so etc. and the engine
+      # could not find them (device test 2026-11-20, see logs/device-tests/)
+      run: |
+        cd game/out/diffusion/bin
+        for f in client server menu; do
+          mv "${f}_android_arm64.so" "lib${f}_android_arm64.so"
+        done
+        ls -lh
 
     - name: Package diffusion android libs
       run: |
