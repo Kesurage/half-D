@@ -50,3 +50,9 @@ device still booted gles1. v0.1.3 forces gl4es at three layers:
   builds mixed-case names ("glsl/GrassDepth_vp.glsl" from the "GrassDepth"
   program), so the APK override layer missed every mixed-case shader and
   the request fell through to the unpatched glsl/ in the game folder.
+
+  half-D (v0.2.0): the v0.1.9 case-insensitive fallback reported the
+  ORIGINAL mixed-case name in fixedname, so the follow-up open failed -
+  169 "couldn't load glsl/..." per session, all brush/studio models
+  invisible. It now reports the case-corrected name the asset is stored
+  under.

@@ -212,3 +212,17 @@ v0.1.6 remains the current release awaiting a real report.
 - Controls: touch engine is fine (touch_enable=1 on android); the APK just
   shipped no touch button art. Generated a 31-icon touch_default pack +
   stick_thumb + numbers.cfg into APK assets.
+
+## 2026-11-21 — v0.2.0: found it, then actually delivered it
+
+- Sandbox restored the stale Nov-20 clone again; fetch+reset to
+  origin/main (73ed5a6) before touching anything. Always check git log
+  first now.
+- v0.1.9 regression: the case-insensitive APK fallback returned the
+  mixed-case ORIGINAL in fixedname, so the open failed -> 169 'couldn't
+  load' per session -> all bmodels/studio models invisible (the 'sunset'
+  was the skybox behind empty space). Now returns the corrected name.
+- The real fps killer: screen textures were GL_RGB8, and gl4es only
+  passes glCopyTexSubImage2D to the driver for RGBA/UBYTE - every post
+  effect did a 4MB CPU readback per frame. TF_SCREEN |= TF_HAS_ALPHA
+  makes them RGBA: native GPU copies, effects stay on.

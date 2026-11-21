@@ -96,3 +96,11 @@
      textures every frame; under GLES2 the color copy is a full-screen
      CPU readback and the depth copy fails outright, so the effect was
      the main per-frame stall and visually broken at the same time.
+
+  14. render/r_local.h (v0.2.0): TF_SCREEN gains TF_HAS_ALPHA. Screen
+     textures used to pick GL_RGB8, and gl4es only forwards
+     glCopyTexSubImage2D to the GLES driver for RGBA/UNSIGNED_BYTE
+     textures - so every full-screen copy in the post chain (motion blur,
+     screen water, monochrome, sharpen, sun shafts, SSAO...) was a 4 MB
+     CPU readback per frame per effect (~4 fps on Mali-G57). RGBA makes
+     them native GPU copies; the effects stay enabled.

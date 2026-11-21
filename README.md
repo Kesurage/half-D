@@ -2,7 +2,7 @@
 
 **Diffusion (by Aynekko) — native Android port. A fork of [Xash3D-FWGS](https://github.com/FWGS/xash3d-fwgs) delivering a standalone, playable APK with a built-in launcher, custom touch controls, FSR1 upscaling and Mali/panvk-friendly graphics settings.**
 
-> Status: **M1 device-test round 9 — Release v0.1.9 is out** (v0.1.8 loads and runs the game at 0-1 fps: mixed-case shader names missed the case-sensitive APK override so bmodel/studio shaders compiled year-old sources, sun shafts did fullscreen readbacks every frame, and the touch buttons had no art — override lookup made case-insensitive, emboss/alpha2coverage stubbed for ES 1.00, sun shafts gated to GL 3.0+, touch pack shipped, see `docs/PORTING_NOTES.md` §15). CI builds the engine APK and
+> Status: **M1 device-test round 10 — Release v0.2.0 is out** (v0.1.9's case-insensitive lookup found the assets but reported the original mixed-case name, so nothing could be opened — all brush/studio models went invisible; and the screen textures' RGB format turned every post-effect copy into a 4 MB CPU readback per frame. v0.2.0 returns the corrected name and makes screen textures RGBA — native GPU copies, effects stay on, see `docs/PORTING_NOTES.md` §16). CI builds the engine APK and
 > the Diffusion Android libraries (client/server/PhysX/MainUI, arm64-v8a) on
 > every push; grab them from [Releases](https://github.com/Kesurage/half-D/releases).
 > Note: the itch.io/ModDB download ships PC binaries only (Windows x86/x64,

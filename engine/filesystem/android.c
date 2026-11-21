@@ -159,6 +159,8 @@ static int FS_FindFile_AndroidAssets( struct searchpath_s *search, const char *p
 	// game folder (v0.1.8 device test: every Bmodel*/Studio* world shader
 	// kept compiling year-old sources). Retry once, case-insensitively,
 	// against the parent directory listing.
+	char corrected[MAX_SYSPATH] = "";
+
 	if( !assets )
 	{
 		char dir[MAX_SYSPATH], name[MAX_SYSPATH], newpath[MAX_SYSPATH];
@@ -188,6 +190,10 @@ static int FS_FindFile_AndroidAssets( struct searchpath_s *search, const char *p
 				{
 					Q_snprintf( newpath, sizeof( newpath ), "%s/%s", dir, entry );
 					assets = AAssetManager_open( search->assets->asset_manager, newpath, AASSET_MODE_UNKNOWN );
+
+					if( assets )
+						Q_strncpy( corrected, newpath, sizeof( corrected ));
+
 					break;
 				}
 			}
@@ -200,7 +206,17 @@ static int FS_FindFile_AndroidAssets( struct searchpath_s *search, const char *p
 	{
 		AAsset_close( assets );
 
-		Q_strncpy( fixedname, path, len );
+		// half-D: report the name the asset is actually stored under - the
+		// caller opens the file through this string, and a mixed-case
+		// original name fails the second case-sensitive AAssetManager_open
+		// (v0.1.9 device test: 169 "couldn't load glsl/..." per session,
+		// every brush/studio model invisible because the search stopped
+		// here without a usable file).
+		if( corrected[0] )
+			Q_strncpy( fixedname, corrected, len );
+		else
+			Q_strncpy( fixedname, path, len );
+
 		return 0;
 	}
 

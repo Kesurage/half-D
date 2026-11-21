@@ -375,3 +375,28 @@ all live). Three new findings:
 Next levers if fps is still bad after v0.1.9: grass density cvars, the
 shader-compile storm at map load (GL_ARB_get_program_binary caching), and
 a proper GLES2 sun-shafts implementation (half-res color copy).
+
+## 16. v0.1.9 post-mortem: the case fix found it, then dropped it
+
+The v0.1.9 log was perfect evidence: every Bmodel*/Studio* shader now
+failed to LOAD ("couldn't load glsl/StudioSolid_vp.glsl" x169) instead of
+compiling year-old sources. Root cause: my case-insensitive fallback
+found the asset but still returned the original mixed-case name in
+`fixedname` - the string the caller then opens the file through. The
+search stopped at the APK ("found!") yet nothing could be read: worse
+than v0.1.8's fall-through. Fix: report the case-corrected name.
+
+The "3 fps increase" pointed at the real per-frame cost. With sun shafts
+already gated, the remaining full-screen copies were still slow: screen
+textures were created without alpha -> engine picked GL_RGB8/GL_RGB5 ->
+gl4es only forwards glCopyTexSubImage2D to the driver for
+RGBA/UNSIGNED_BYTE textures, so EVERY post-effect copy (motion blur,
+screen water, monochrome, sharpen...) became a 4 MB CPU readback PER
+FRAME PER EFFECT. TF_SCREEN now includes TF_HAS_ALPHA: RGBA textures,
+native GPU copies, effects stay on. Depth copies remain impossible on
+GLES2 (SSAO defaults off, sun shafts gated).
+
+Also: the sandbox restored a stale Nov-20 clone again this round (HEAD
+at v0.1.0-era, no v0.1.9 files) - recovered with fetch + reset to
+origin/main before patching. Check `git log --oneline -1` first, every
+session.
