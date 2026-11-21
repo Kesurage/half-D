@@ -404,10 +404,15 @@ static const dllfunc_t binaryshaderfuncs[] =
 {
 { "glProgramBinary"              , (void **)&pglProgramBinaryARB },
 { "glGetProgramBinary"           , (void **)&pglGetProgramBinaryARB },
-{ "glProgramParameteri"          , (void **)&pglGetProgramivARB },
-{ "glProgramParameteriARB"		 , (void **)&pglProgramParameteriARB },
 { NULL, NULL }
 };
+// half-D: the old table also required glProgramParameteri(ARB) — gl4es exposes
+// the binary get/set (ES passthrough) but not the hint setter, so the
+// all-or-nothing check silently disabled the shader disk cache and the whole
+// precompile pass on Android (every permutation compiled lazily mid-frame,
+// 1-13 s spikes). The (optional, hint-only) setter is resolved separately
+// below, after the extension check. This also removes a copy-paste bug that
+// clobbered pglGetProgramivARB with the glProgramParameteri pointer.
 
 #ifndef CALLBACK
 #define CALLBACK
@@ -790,6 +795,12 @@ static void GL_InitExtensions( void )
 
 	GL_CheckExtension( "GL_ARB_get_program_binary", binaryshaderfuncs, "gl_binaryshader", R_BINARY_SHADER_EXT );
 
+	// half-D: hint setter is optional (gl4es does not export it) — call sites
+	// check for NULL. Without the hint the driver still serves/accepts binaries.
+	pglProgramParameteriARB = (void ( APIENTRY *)( GLuint, GLenum, GLint ))GL_GetProcAddress( "glProgramParameteriARB" );
+	if( !pglProgramParameteriARB )
+		pglProgramParameteriARB = (void ( APIENTRY *)( GLuint, GLenum, GLint ))GL_GetProcAddress( "glProgramParameteri" );
+
 	// check for hardware skinning
 	pglGetIntegerv( GL_MAX_VERTEX_UNIFORM_COMPONENTS_ARB, &glConfig.max_vertex_uniforms );
 	pglGetIntegerv( GL_MAX_VERTEX_ATTRIBS_ARB, &glConfig.max_vertex_attribs );
@@ -914,6 +925,8 @@ static void R_InitStubCubemaps( void )
 	memset( dataCM, 0x00, sizeof( dataCM ) );
 	tr.blackCubeTexture = CREATE_TEXTURE( "*blackCube", size, size, dataCM, TF_NOMIPMAP|TF_CUBEMAP|TF_CLAMP );
 	tr.depthCubemap = CREATE_TEXTURE( "depthCube", 8, 8, NULL, TF_SHADOW_CUBEMAP );
+	if( !tr.depthCubemap )
+		tr.depthCubemap = tr.whiteCubeTexture; // half-D: shadowless pointlight stub (no depth cubemaps via gl4es)
 }
 
 static void GL_InitTextures( void )
@@ -924,7 +937,18 @@ static void GL_InitTextures( void )
 	tr.whiteTexture = FIND_TEXTURE( REF_WHITE_TEXTURE );
 	tr.grayTexture = FIND_TEXTURE( REF_GRAY_TEXTURE );
 	tr.blackTexture = FIND_TEXTURE( REF_BLACK_TEXTURE );
-	tr.depthTexture = CREATE_TEXTURE( "*depth", 8, 8, NULL, TF_SHADOW ); 
+	tr.depthTexture = CREATE_TEXTURE( "*depth", 8, 8, NULL, TF_SHADOW );
+	if( !tr.depthTexture )
+	{
+		// half-D: no GL_ARB_depth_texture through gl4es — the depth stub fails
+		// and every dlight pass used to abort ("shadow texture for the light
+		// is missing"), leaving dynamic lights completely unrendered. Give
+		// shadowless lights a plain white 8x8 stub so the light pass runs.
+		byte depthStub[8*8];
+		memset( depthStub, 0xFF, sizeof( depthStub ));
+		tr.depthTexture = CREATE_TEXTURE( "*depth_stub", 8, 8, depthStub, TF_NOMIPMAP|TF_CLAMP|TF_LUMINANCE );
+		ConPrintf( "half-D: depth textures unsupported, dynamic lights will be shadowless\n" );
+	}
 
 	R_InitStubCubemaps();
 

@@ -329,3 +329,41 @@ v0.1.6 remains the current release awaiting a real report.
   realign x2); +--enable-gles3compat/--enable-gles1.
 - Sandbox recycled twice mid-round; both times recovered from
   origin/main. All v0.2.x work lives on GitHub.
+
+## 2026-11-21 — v0.4.0: the log finally talks (menu crash, dead lights, shader cache)
+
+v0.3.0 device log + code walk pinned four independent mechanisms:
+
+1. Menu/options crash (device reset): GaussBlur() has an UNGATED
+   "blur when paused (menu shown)" path — RenderGaussBlur does TWO
+   fullscreen pglCopyTexSubImage2D per frame while any menu is open
+   (r_blur 0 only gates water/sky/damage blur). Same gl4es CPU-readback
+   cliff as FSR/DownScale: 0.5-13 s frames -> GPU watchdog. FIX:
+   r_menu_blur cvar, 0 in mobile preset v6. Audited every other copy
+   path — all properly gated.
+2. Lighting dead: no GL_ARB_depth_texture via gl4es -> TF_SHADOW stubs
+   return 0 (engine turns TF_DEPTHMAP into GL_NONE) -> every dlight
+   pass aborts ("shadow texture for the light is missing") -> zero
+   dynamic light contribution. FIX: white 8x8 plain stubs for
+   depthTexture/depthCubemap (shadowless lights — exactly what the
+   code comment demanded), FBO texnum-0 guard, one-shot diagnostics.
+3. 1-13 s spikes, no precompile: binaryshaderfuncs required
+   glProgramParameteri(ARB) in the all-or-nothing table; gl4es exports
+   the binary get/set but NOT the hint setter -> R_BINARY_SHADER_EXT
+   off -> no .shadercache disk cache, no progressive precompile, lazy
+   mid-frame compiles. Table also clobbered pglGetProgramivARB
+   (copy-paste). FIX: table = 2 required entry points, hint setter
+   resolved separately + NULL-guarded at 3 call sites. First launch
+   compiles ~1100 permutations behind MainUI's compile screen, then
+   loads from .shadercache every launch.
+4. Console font: MainUI maps Tahoma -> gfx/fonts/tahoma.ttf which the
+   itch package does not ship (log: "Unable to read font file").
+   FIX: map to the bundled FiraSans (SIL OFL).
+
+Diagnostics for round 18: BSP load-stage timers (25 s world load),
+caps2 += bptc/rgtc/program_binary (raindrop.dds upload failure =
+likely BC7 without BPTC), upload-fail message += pixel format name.
+
+Open: menu bg map still renders 282k epoly studio geometry (~100 ms
+scene at 11 fps in-game is playable; menu usable once blur is gone);
+fleck/glass_gib/sky/lambda = missing mod content.

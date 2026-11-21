@@ -741,11 +741,14 @@ static void R_RenderInfo( qboolean startup )
 		Q_stristr( glConfig.extensions_string, "GL_EXT_draw_buffers" ) ? "yes" : "no" );
 
 	// half-D: compression caps decide whether DDS textures can load at all
-	gEngfuncs.Con_Printf( "GL caps2: s3tc %s, etc1 %s, astc_ldr %s, fbo %s\n",
+	gEngfuncs.Con_Printf( "GL caps2: s3tc %s, etc1 %s, astc_ldr %s, fbo %s, bptc %s, rgtc %s, program_binary %s\n",
 		Q_stristr( glConfig.extensions_string, "GL_EXT_texture_compression_s3tc" ) ? "yes" : "no",
 		Q_stristr( glConfig.extensions_string, "GL_OES_compressed_ETC1_RGB8_texture" ) ? "yes" : "no",
 		Q_stristr( glConfig.extensions_string, "GL_KHR_texture_compression_astc_ldr" ) ? "yes" : "no",
-		Q_stristr( glConfig.extensions_string, "GL_EXT_framebuffer_object" ) ? "yes" : "no" );
+		Q_stristr( glConfig.extensions_string, "GL_EXT_framebuffer_object" ) ? "yes" : "no",
+		Q_stristr( glConfig.extensions_string, "GL_ARB_texture_compression_bptc" ) ? "yes" : "no",
+		( Q_stristr( glConfig.extensions_string, "GL_ARB_texture_compression_rgtc" ) || Q_stristr( glConfig.extensions_string, "GL_EXT_texture_compression_rgtc" )) ? "yes" : "no",
+		Q_stristr( glConfig.extensions_string, "GL_ARB_get_program_binary" ) ? "yes" : "no" );
 
 	// don't spam about extensions
 	gEngfuncs.Con_Reportf( "GL_EXTENSIONS: %s\n", glConfig.extensions_string );

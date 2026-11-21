@@ -625,6 +625,13 @@ void GaussBlur( void )
 	if( CVAR_TO_BOOL( ui_forcenoblur ) )
 		return;
 
+	// half-D: the paused-menu GaussBlur does two fullscreen pglCopyTexSubImage2D
+	// captures every frame while any menu is open — through gl4es that is a CPU
+	// readback (0.5-13 s per frame on Mali, GPU watchdog resets). r_menu_blur 0
+	// (mobile preset) disables it; desktop keeps the original blurred-menu look.
+	if( !CVAR_TO_BOOL( r_menu_blur ) )
+		pausedblur = 0;
+
 	// blur when paused (menu is shown)
 	if( RP_NORMALPASS() )
 	{

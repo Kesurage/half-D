@@ -120,6 +120,11 @@ void R_ResetShadowTextures( void )
 		}
 	}
 
+	// half-D: on gl4es (no GL_ARB_depth_texture) every TF_SHADOW allocation
+	// fails and the array stays 0 — say so once instead of failing per light.
+	if( !tr.shadowTextures[0] )
+		ConPrintf( "half-D: shadow textures unavailable (no depth textures via GL4ES), dlights run shadowless\n" );
+
 	// create 1 shadow cubemap too
 	if( !tr.shadowCubemaps[0] )
 	{
@@ -189,6 +194,9 @@ int R_AllocateShadowFramebuffer( plight_t *pl, int side = 0 )
 			}
 		}
 
+		if( !texture )
+			return 0; // half-D: no shadow cubemap possible (no depth textures) — caller disables
+
 		pglBindFramebuffer( GL_FRAMEBUFFER_EXT, sh_framebuffer );
 		pglDrawBuffer( GL_NONE );
 		pglReadBuffer( GL_NONE );
@@ -219,6 +227,9 @@ int R_AllocateShadowFramebuffer( plight_t *pl, int side = 0 )
 			tr.shadowTextures[i] = CREATE_TEXTURE( txName, ShadowViewport, ShadowViewport, NULL, TF_SHADOW );
 			texture = tr.shadowTextures[i];
 		}
+
+		if( !texture )
+			return 0; // half-D: no shadow texture possible (no depth textures) — caller disables
 
 		pglBindFramebuffer( GL_FRAMEBUFFER_EXT, sh_framebuffer );
 		pglDrawBuffer( GL_NONE );

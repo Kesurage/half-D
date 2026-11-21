@@ -636,7 +636,8 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 	// try load from file
 	if( bSupportBinaryShader )
 	{
-		pglProgramParameteriARB( shader->handle, GL_PROGRAM_BINARY_RETRIEVABLE_HINT, GL_TRUE );
+		if( pglProgramParameteriARB )
+			pglProgramParameteriARB( shader->handle, GL_PROGRAM_BINARY_RETRIEVABLE_HINT, GL_TRUE );
 
 		char filename[256];
 		GL_GetShaderCacheFilename( glname, defines ? defines : "", filename, sizeof( filename ) );
@@ -678,7 +679,8 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 						ALERT( at_warning, "^1Cached binary %s FAILED to link:^7 %s\n", filename, GL_PrintInfoLog( shader->handle ) );
 						pglDeleteObjectARB( shader->handle );
 						shader->handle = pglCreateProgramObjectARB();  // Recreate
-						pglProgramParameteriARB( shader->handle, GL_PROGRAM_BINARY_RETRIEVABLE_HINT, GL_TRUE );
+						if( pglProgramParameteriARB )
+							pglProgramParameteriARB( shader->handle, GL_PROGRAM_BINARY_RETRIEVABLE_HINT, GL_TRUE );
 					}
 				}
 				else
@@ -888,7 +890,7 @@ static glsl_program_t *GL_CreateUberShader( GLuint slot, const char *glname, con
 	if( !shader->handle )
 		return NULL; // some bad happens
 
-	if( bSupportBinaryShader )
+	if( bSupportBinaryShader && pglProgramParameteriARB )
 		pglProgramParameteriARB( shader->handle, GL_PROGRAM_BINARY_RETRIEVABLE_HINT, GL_TRUE );
 
 	Q_strncpy( shader->name, glname, sizeof( shader->name ));

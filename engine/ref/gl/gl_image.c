@@ -1405,7 +1405,7 @@ int GL_LoadTexture( const char *name, const byte *buf, size_t size, int flags )
 	if( !GL_UploadTexture( tex, pic ))
 	{
 		// half-D: upload failures (format/compression) were silent
-		gEngfuncs.Con_Printf( S_ERROR "half-D: texture upload failed: %s\n", name );
+		gEngfuncs.Con_Printf( S_ERROR "half-D: texture upload failed: %s (format %s)\n", name, gEngfuncs.Image_GetPFDesc( pic->type )->name );
 		memset( tex, 0, sizeof( gl_texture_t ));
 		gEngfuncs.FS_FreeImage( pic ); // release source texture
 		return 0;
@@ -1557,7 +1557,7 @@ int GL_LoadTextureArray( const char **names, int flags )
 	if( !GL_UploadTexture( tex, pic ))
 	{
 		// half-D: upload failures (format/compression) were silent
-		gEngfuncs.Con_Printf( S_ERROR "half-D: texture upload failed: %s\n", name );
+		gEngfuncs.Con_Printf( S_ERROR "half-D: texture upload failed: %s (format %s)\n", name, gEngfuncs.Image_GetPFDesc( pic->type )->name );
 		memset( tex, 0, sizeof( gl_texture_t ));
 		gEngfuncs.FS_FreeImage( pic ); // release source texture
 		return 0;

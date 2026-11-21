@@ -541,7 +541,10 @@ bool CFontManager::FindFontDataFile( const char *name, int tall, int weight, int
 	}
 	else if( !strcmp( name, "Tahoma" ) )
 	{
-		Q_strncpy( dataFile, "gfx/fonts/tahoma.ttf", dataFileChars );
+		// half-D: tahoma.ttf is proprietary and absent from the itch package —
+		// the console font silently failed to load on device. FiraSans (SIL OFL)
+		// ships with the port; use it instead.
+		Q_strncpy( dataFile, "gfx/fonts/FiraSans-Regular.ttf", dataFileChars );
 		return true;
 	}
 

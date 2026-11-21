@@ -4265,26 +4265,38 @@ static qboolean Mod_LoadBmodelLumps( model_t *mod, byte *mod_base, size_t buffer
 			Con_DPrintf( "%s: %i warning(s)\n", __func__, loadstat.numwarnings );
 	}
 
+	// half-D: load-stage timing — device logs show 25 s world loads and the
+	// per-stage cost is otherwise invisible. Print every stage over 0.3 s.
+#define BSP_LOAD_STAGE( stage, call ) \
+	do { \
+		double stageT0 = Platform_DoubleTime(); \
+		call; \
+		double stageDt = Platform_DoubleTime() - stageT0; \
+		if( isworld && stageDt > 0.3 ) \
+			Con_Printf( "load: %s in %.2f s\n", stage, stageDt ); \
+	} while( 0 )
+
 	// load into heap
-	Mod_LoadEntities( mod, bmod );
-	Mod_LoadPlanes( mod, bmod );
-	Mod_LoadSubmodels( mod, bmod );
-	Mod_LoadVertexes( mod, bmod );
-	Mod_LoadEdges( mod, bmod );
-	Mod_LoadSurfEdges( mod, bmod );
-	Mod_LoadTextures( mod, bmod );
-	Mod_LoadVisibility( mod, bmod );
-	Mod_LoadTexInfo( mod, bmod );
-	Mod_LoadSurfaces( mod, bmod );
-	Mod_LoadLighting( mod, bmod );
-	Mod_LoadMarkSurfaces( mod, bmod );
-	Mod_LoadLeafs( mod, bmod );
-	Mod_LoadNodes( mod, bmod );
-	Mod_LoadClipnodes( mod, bmod );
+	BSP_LOAD_STAGE( "entities", Mod_LoadEntities( mod, bmod ));
+	BSP_LOAD_STAGE( "planes", Mod_LoadPlanes( mod, bmod ));
+	BSP_LOAD_STAGE( "submodels", Mod_LoadSubmodels( mod, bmod ));
+	BSP_LOAD_STAGE( "vertexes", Mod_LoadVertexes( mod, bmod ));
+	BSP_LOAD_STAGE( "edges", Mod_LoadEdges( mod, bmod ));
+	BSP_LOAD_STAGE( "surfedges", Mod_LoadSurfEdges( mod, bmod ));
+	BSP_LOAD_STAGE( "textures", Mod_LoadTextures( mod, bmod ));
+	BSP_LOAD_STAGE( "visibility", Mod_LoadVisibility( mod, bmod ));
+	BSP_LOAD_STAGE( "texinfo", Mod_LoadTexInfo( mod, bmod ));
+	BSP_LOAD_STAGE( "surfaces", Mod_LoadSurfaces( mod, bmod ));
+	BSP_LOAD_STAGE( "lighting", Mod_LoadLighting( mod, bmod ));
+	BSP_LOAD_STAGE( "marksurfaces", Mod_LoadMarkSurfaces( mod, bmod ));
+	BSP_LOAD_STAGE( "leafs", Mod_LoadLeafs( mod, bmod ));
+	BSP_LOAD_STAGE( "nodes", Mod_LoadNodes( mod, bmod ));
+	BSP_LOAD_STAGE( "clipnodes", Mod_LoadClipnodes( mod, bmod ));
 
 	// preform some post-initalization
-	Mod_MakeHull0( mod, bmod );
-	Mod_SetupSubmodels( mod, bmod );
+	BSP_LOAD_STAGE( "makehull0", Mod_MakeHull0( mod, bmod ));
+	BSP_LOAD_STAGE( "setupsubmodels", Mod_SetupSubmodels( mod, bmod ));
+#undef BSP_LOAD_STAGE
 
 	if( isworld )
 	{
