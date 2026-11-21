@@ -310,7 +310,14 @@ searchpath_t *FS_AddAndroidAssets_Fullpath( const char *path, int flags )
 
 	search = Mem_Calloc( fs_mempool, sizeof( *search ));
 
-	Q_strncpy( search->filename, assets->package_name, sizeof( search->filename ));
+	// half-D: honor an explicit path argument as the search filename. The
+	// dedupe in FS_AddArchive_Fullpath compares type+filename, and this
+	// layer always used the package name — so mounting the APK assets a
+	// second time (as a highest-priority override at the end of FS_Rescan)
+	// was silently turned into a no-op.
+	if( path && path[0] )
+		Q_strncpy( search->filename, path, sizeof( search->filename ));
+	else Q_strncpy( search->filename, assets->package_name, sizeof( search->filename ));
 	search->assets = assets;
 	search->type = SEARCHPATH_ANDROID_ASSETS;
 	SetBits( search->flags, FS_NOWRITE_PATH | FS_CUSTOM_PATH );

@@ -36,6 +36,16 @@ jobs:
         cp gamelibs/diffusion/bin/libmenu_android_arm64.so     engine/android/app/src/main/jniLibs/arm64-v8a/libmenu.so
         ls -lh engine/android/app/src/main/jniLibs/arm64-v8a/
 
+    - name: Bundle patched glsl into APK assets (override layer)
+      # the engine mounts APK assets a second time as the HIGHEST priority
+      # search path (see FS_Rescan in engine/filesystem/searchpath.c), so
+      # these shaders override the stale glsl/ in the user's game folder
+      run: |
+        rm -rf engine/android/app/src/main/assets/glsl
+        cp -a game/glsl engine/android/app/src/main/assets/glsl
+        ls engine/android/app/src/main/assets/glsl | head -5
+        ls engine/android/app/src/main/assets/glsl | wc -l
+
     - uses: actions/setup-java@v4
       with:
         distribution: temurin

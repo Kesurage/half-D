@@ -459,6 +459,17 @@ void FS_Rescan( uint32_t flags, const char *language )
 
 	((gameinfo_t *)GI)->added = true; // getting rid of const here, as this modifier only for the engine
 	FS_AddGameHierarchy( GI->gamefolder, FS_GAMEDIR_PATH | flags );
+
+#if XASH_ANDROID
+	// half-D: mount the engine APK assets once more, AFTER the whole game
+	// hierarchy. Search paths are prepended on add, so this one ends up at
+	// the head of the list and files shipped in the APK assets (patched
+	// glsl/) override stale copies in the user's game data folder. The
+	// game dir normally wins over APK assets (unpacked > packed), which
+	// made the original itch glsl shadow our ES 1.00 fixes — the v0.1.6
+	// device log compiled year-old shader sources because of that.
+	FS_AddArchive_Fullpath( &g_android_archive, "half-d-override", FS_NOWRITE_PATH );
+#endif
 }
 
 /*

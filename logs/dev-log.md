@@ -163,3 +163,20 @@ on a different phone (Infinix X6882, Helio G99), captured 2026-11-20 08:43
 the app exits in it are clean swipe-ups. Nothing to diagnose from it; asked
 for the half-D crash zip (auto-packages engine.log) or the engine.log file.
 v0.1.6 remains the current release awaiting a real report.
+
+## 2026-11-21 — v0.1.6 device crash: game renders! glsl never reached the device
+
+- Crash stack: HUD_RenderFrame → R_DrawWorld → R_DrawBrushList →
+  R_DrawGrass r_grass.cpp:1704, SEGV at 0x524. Map load + studio models
+  all passed — the render loop is LIVE.
+- engine.log (76KB) with unconditional diagnostics: Mali driver says
+  "S0001: Type mismatch int/float" — but repo mathlib.h is clean since
+  v0.1.5, and the failure list is IDENTICAL to v0.1.4 → the device
+  compiled the ORIGINAL itch glsl from the game data folder. The APK has
+  no glsl and the FS search order (game dir > APK assets) shadowed all
+  our shader fixes. The grass crash is NULL genericFog → currentshader
+  NULL → u_FogParams at +0x524 — matches the fault address exactly.
+- v0.1.7: engine FS_Rescan mounts APK assets again as highest-priority
+  override; patched glsl ships in APK assets (CI step); android.c honors
+  mount path as filename (dedupe bypass); grass renderer guards both
+  currentshader derefs.

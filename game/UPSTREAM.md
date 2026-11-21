@@ -59,3 +59,9 @@
      downgraded to non-fatal warnings, and the dml block got the missing
      j != MAXSTUDIOMODELS guard (the old ASSERT indexed submodels[j] out of
      bounds when the offset search failed).
+
+  9. client/render/r_grass.cpp (v0.1.7): both R_DrawGrass passes dereferenced
+     RI->currentshader right after GL_BindShader without a NULL check —
+     when a grass/fog shader failed to compile (GL 2.x), the fog path
+     segfaulted at u_FogParams (offset 0x524 of a NULL program pointer).
+     Guarded; a missing shader now skips the uniform upload.

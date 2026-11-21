@@ -281,3 +281,34 @@ Fix (v0.1.6, game fork):
 Note: this round we only got the screenshot (the assert dialog) — the
 unconditional shader diagnostics from v0.1.5 are in the device's
 engine.log but weren't sent; worth requesting next time.
+
+## 13. v0.1.6 device post-mortem: the game renders; shaders never updated on device
+
+Huge milestone: v0.1.6 got through map load, studio models and started
+drawing the world — crash moved to R_DrawGrass (r_grass.cpp:1704), SIGSEGV
+at 0x524. And this time the engine.log (76 KB) carried the driver's own
+error text thanks to the unconditional diagnostics:
+
+- `S0001: Type mismatch in arithmetic operation between 'int' and 'float'`
+  — but the repo's mathlib.h has no such arithmetic left since v0.1.5.
+- The 27 failing shaders were IDENTICAL to v0.1.4. Same sources compiled.
+
+Root cause: **the APK ships no glsl at all**; shaders load from the game
+data folder on the device, which still contains the ORIGINAL itch glsl/.
+The engine's filesystem order puts the game dir above APK assets
+("unpacked files have the priority over packed files",
+FS_AddGameDirectory) — so every glsl patch we ever made never reached the
+device. The grass crash was collateral: glsl.genericFog is NULL after the
+failed compile, GL_BindShader(NULL) leaves RI->currentshader NULL, and
+the very next line reads u_FogParams at offset 0x524 of that NULL pointer
+— matching the fault address exactly.
+
+Fix (v0.1.7):
+- engine: FS_Rescan mounts the engine APK assets a second time as the
+  LAST search path — prepended, so it takes priority over the game
+  folder. Patched glsl/ now ships in the APK assets and wins.
+- android.c honors the mount path as the search filename (the package
+  name made the second mount dedupe into a no-op).
+- r_grass.cpp: both grass passes guard the currentshader deref.
+- CI copies game/glsl into engine/android/app/src/main/assets/ (gradle
+  already stores assets uncompressed via noCompress).

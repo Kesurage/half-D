@@ -35,3 +35,11 @@ device still booted gles1. v0.1.3 forces gl4es at three layers:
    `<rodir>/<gamedir>/gfx/fonts/` on launch — MainUI loads
    `gfx/fonts/FiraSans-Regular.ttf` from the engine search paths and the itch
    download doesn't ship it.
+
+  8. filesystem (v0.1.7): FS_Rescan mounts the engine APK assets one extra
+     time as the LAST search path (search paths are prepended, so it ends
+     up at the head), letting files shipped in the APK assets override
+     the game data folder. Upstream's search order (game dir > APK assets,
+     "unpacked over packed") made the original itch glsl/ shadow the
+     port's ES 1.00 shader fixes. android.c honors the path argument as
+     the search filename so this second mount isn't deduped away.
