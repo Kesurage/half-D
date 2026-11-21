@@ -290,3 +290,16 @@ v0.1.6 remains the current release awaiting a real report.
   shimmer).
 - GL caps line added at ref init (texture_array etc.) to attribute the
   missing-texture/terrain-layer question next log.
+
+## 2026-11-21 — v0.2.6: stable build
+
+- v0.2.5 broke the game: purple checkers, broken glass, menu at
+  0.2-2.3fps. Heartbeat data + code walk = two causes:
+  (a) FSR(): runs at ANY renderscale, pglCopyTexSubImage2D per frame =
+  gl4es CPU readback = seconds/frame + broken composite. Preset now
+  gl_fsr 0.
+  (b) LoadTerrainLayers unconditional LOAD_TEXTURE_ARRAY -> ref
+  downgrades to GL_NONE stub -> purple checkers. Fixed with 2D
+  single-layer fallback (pre-existing since v0.2.4).
+- Grass toggles reverted (no measurable cost).
+- Keep: heartbeat, GL caps line, _snd_mixahead 0.3.

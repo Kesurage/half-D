@@ -170,3 +170,13 @@
      underruns every frame below ~8 fps — the reported audio glitching);
      ref logs texture_array/gpu_shader4/shadow_samplers/draw_buffers caps
      at init (to attribute missing terrain layers / shadow fallbacks).
+
+  24. (v0.2.6) LoadTerrainLayers: gate LOAD_TEXTURE_ARRAY on GL_Support(
+     R_TEXTURE_ARRAY_EXT) — the ref silently downgrades unsupported array
+     uploads to a GL_NONE stub, and terrain shaders (compiled without
+     GLSL_ALLOW_TEXTURE_ARRAY) sample that stub as sampler2D = purple
+     checkers on the whole landscape. 2D single-layer fallback when
+     unsupported. Preset v3: gl_fsr 0 (FSR() runs at any renderscale and
+     does a pglCopyTexSubImage2D fullscreen copy per frame — a gl4es CPU
+     readback, seconds per frame on Mali) and r_grass/r_grass_lighting
+     back to yalnie defaults (cost was negligible next to the FSR cliff).

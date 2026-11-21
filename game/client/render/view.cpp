@@ -493,10 +493,13 @@ void V_VidInit( void )
 		gl_allow_portals->value = 0.0f;       // portal recursion
 		r_mirrorquality->value = 1.0f;
 		r_blur->value = 0.0f;                 // DoF blur
-		r_grass->value = 0.0f;                // grass geometry pass (default 1!)
-		r_grass_lighting->value = 0.0f;       // per-blade lighting
-		gl_fsr->value = 1.0f;                 // FSR1 upscale instead of bilinear at 0.85
-		ConPrintf( "renderer: mobile quality preset v2 applied (gl_mobile_quality 1)\n" );
+		// half-D v0.2.6: FSR stays OFF — FSR() runs at any renderscale and
+		// does a pglCopyTexSubImage2D fullscreen copy every frame, which is
+		// a gl4es CPU readback (seconds per frame on Mali) and broke the
+		// final composite (purple checkers). Grass back to yalnie defaults
+		// — its cost was negligible next to the FSR cliff.
+		gl_fsr->value = 0.0f;
+		ConPrintf( "renderer: mobile quality preset v3 applied (gl_mobile_quality 1)\n" );
 	}
 
 	PrevViewAngles = g_vecZero;

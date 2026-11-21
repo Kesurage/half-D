@@ -1711,14 +1711,29 @@ static bool LoadTerrainLayers( layerMap_t* lm, int numLayers )
 		}
 	}
 
-	if( (lm->gl_diffuse_id = LOAD_TEXTURE_ARRAY( (const char**)texnames, 0 )) == 0 )
-		return false;
+	// half-D: with no texture-array support (gl4es/GLES2), the array
+	// upload is silently downgraded to a GL_NONE stub by the ref — the
+	// terrain shaders then sample it as sampler2D (texfetch.h fallback)
+	// and render purple checkers on the whole landscape. Load a plain 2D
+	// layer instead; the shader fallback samples it through the blend
+	// masks and the terrain renders single-layer.
+	if( GL_Support( R_TEXTURE_ARRAY_EXT ))
+	{
+		if( (lm->gl_diffuse_id = LOAD_TEXTURE_ARRAY( (const char**)texnames, 0 )) == 0 )
+			return false;
 
-	// make sure all layers have normalmaps
-	if( normalmap_count == numLayers )
-		lm->gl_normalmap_id = LOAD_TEXTURE_ARRAY( (const char **)normalmaps, TF_NORMALMAP );
-	else if( normalmap_count > 0 && normalmap_count < numLayers )
-		ConPrintf( "^3Warning:^7 not all landscape layers have normalmaps!\n" );
+		// make sure all layers have normalmaps
+		if( normalmap_count == numLayers )
+			lm->gl_normalmap_id = LOAD_TEXTURE_ARRAY( (const char **)normalmaps, TF_NORMALMAP );
+		else if( normalmap_count > 0 && normalmap_count < numLayers )
+			ConPrintf( "^3Warning:^7 not all landscape layers have normalmaps!\n" );
+	}
+	else
+	{
+		lm->gl_diffuse_id = LOAD_TEXTURE( texnames[0], NULL, 0, 0 );
+		lm->gl_normalmap_id = 0;
+		ConPrintf( "landscape %s: no texture arrays, single-layer fallback\n", texnames[0] );
+	}
 
 	return true;
 }

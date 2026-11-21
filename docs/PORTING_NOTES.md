@@ -523,3 +523,31 @@ graphics STABLE. Remaining issues from the log:
    GL_EXT_texture_array. Ref now prints the caps line at init; the next
    log settles it. (Missing car models + HL1 sounds remain mod content,
    not the port.)
+
+## 22. v0.2.6: the v0.2.5 regression, root-caused twice over
+
+The v0.2.5 heartbeat (back after the merge wiped it) earned its keep
+immediately: menu 0.2-2.3 fps (2170-6014 ms frames), in-game 4.8-6.8
+fps at 100k epoly, zero shader errors, and the caps line printed
+'texture_array no'. Two root causes fell out:
+
+1. FSR was the v0.2.5 regression. FSR() runs whenever gl_fsr>0
+   regardless of renderscale (menu renders at 1.0!) and does a
+   pglCopyTexSubImage2D fullscreen copy every frame — through gl4es
+   that is a CPU readback: seconds per frame on Mali, and the broken
+   composite painted checkers/purple and garbage glass. Preset v3 sets
+   gl_fsr 0; grass toggles reverted to yalnie defaults (their cost was
+   negligible next to the FSR cliff).
+2. The purple terrain checkers were PRE-EXISTING (v0.2.4 'some
+   textures won't load'): LoadTerrainLayers calls LOAD_TEXTURE_ARRAY
+   unconditionally; without GL_EXT_texture_array the ref downgrades the
+   upload to a GL_NONE stub; the terrain shader (no
+   GLSL_ALLOW_TEXTURE_ARRAY, texfetch.h maps sampler2DArray->sampler2D)
+   samples the stub. Fixed: 2D single-layer fallback when arrays are
+   unsupported — terrain now renders base-layer through the blend masks.
+
+Steady-state in-game cost is still ~2x our pre-merge tree at equal
+epoly (146-208 ms vs 59-83 ms at 100k) — that gap is the next hunt
+(lightprobes? particles? studio uniform traffic?) once this build is
+confirmed stable. Audio underruns at 6 fps are expected to shrink with
+the FSR cliff gone; _snd_mixahead stays 0.3.
