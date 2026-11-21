@@ -404,3 +404,31 @@ with zero error output.
   streak, tools/make_raindrop.py) in the libs zip.
 - Heartbeat now reports dips/passes/binds to tell draw-call-bound from
   geometry-bound in the ~100 ms scene stage.
+
+## 2026-11-22 — v0.4.2: the v0.4.1 crash was my own raindrop.dds
+
+Device logs (two crashes, both within 5 s of launch, before the menu):
+the second one carried the smoking gun —
+
+    Mem_FreeBlockBig: trashed header sentinel 2
+    (alloc at engine/common/imagelib/img_dds.c:420, check at img_main.c:596)
+
+Both backtraces (SEGV in libft2/hwui text shaping; SEGV in
+android::RefBase::incStrong) were collateral of a corrupted heap, not game
+code. Root cause: my uncompressed raindrop.dds set the DDSD_PITCH flag,
+and Image_DXTCalcSize's PITCH|LINEARSIZE branch uses dwPitchOrLinearSize
+as the TOTAL size — I had written the per-row pitch (W*4 = 128) there, so
+the loader allocated a 128-byte buffer for a 16384-byte texture and the
+upload path wrote 16 KB through it.
+
+Fixes:
+- generator: DDSD_LINEARSIZE with the full W*H*4 (16384 == file bytes ==
+  loader expectation, verified by replicating Image_DXTCalcSize's branch
+  logic against the new header).
+- engine hardening: in the PITCH|LINEARSIZE branch, a PITCH-flagged
+  UNCOMPRESSED file now computes pitch * height instead of trusting the
+  field, so no tool-generated file can misallocate the buffer again.
+
+Everything else in v0.4.1 (capture-FX gate, negative shader cache,
+precompile filter, load timing) never got to run — the crash happened
+during client texture init. All of it carries into v0.4.2 unchanged.

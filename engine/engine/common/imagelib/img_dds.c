@@ -282,6 +282,20 @@ static uint Image_DXTCalcSize( const char *name, dds_t *hdr, size_t filesize )
 	{
 		// just in case (no need, really)
 		buffsize = hdr->dwLinearSize;
+
+		// half-D: some tools write a per-row pitch under DDSD_PITCH for
+		// uncompressed DDS. Using it as the total size made the loader
+		// allocate w*4 bytes for a w*h*4 texture and trash the heap (the
+		// v0.4.1 device crash: trashed sentinel at the img_dds.c alloc,
+		// then SEGVs inside libft2/hwui/RefBase on the corrupted heap).
+		// DDSD_PITCH means per-row; DDSD_LINEARSIZE already is the total.
+		if(( hdr->dwFlags & DDS_PITCH ) && !( hdr->dwFlags & DDS_LINEARSIZE )
+			&& ( image.type == PF_BGRA_32 || image.type == PF_RGBA_32
+			|| image.type == PF_BGR_24 || image.type == PF_RGB_24
+			|| image.type == PF_LUMINANCE ))
+		{
+			buffsize = (size_t)hdr->dwLinearSize * hdr->dwHeight;
+		}
 	}
 	else
 	{

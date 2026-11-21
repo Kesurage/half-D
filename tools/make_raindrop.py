@@ -16,32 +16,25 @@ W, H = 32, 128
 DDSD_CAPS        = 0x1
 DDSD_HEIGHT      = 0x2
 DDSD_WIDTH       = 0x4
-DDSD_PITCH       = 0x8
+DDSD_LINEARSIZE  = 0x80000
 DDSD_PIXELFORMAT = 0x1000
 DDPF_ALPHAPIXELS = 0x1
 DDPF_RGB         = 0x40
 DDSCAPS_TEXTURE  = 0x1000
 
-header = struct.pack(
-    '<4s7I44x8I',
-    b'DDS ',
-    124,                                   # dwSize
-    DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PITCH | DDSD_PIXELFORMAT,
-    H, W,                                  # dwHeight, dwWidth
-    W * 4,                                 # dwPitch
-    0, 0, 1,                               # dwDepth, dwMipMapCount(1) + reserved starts
-    # struct layout: after 7 dwords come dwReserved1[11] (44x), then
-    # pixelformat (8 dwords), dwCaps (4), dwReserved2
-)[:-0] if False else None
-
-# Build the 124-byte header explicitly for clarity
 def make_header():
     h = b'DDS '
     h += struct.pack('<I', 124)            # dwSize
-    h += struct.pack('<I', DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PITCH | DDSD_PIXELFORMAT)
+    h += struct.pack('<I', DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_LINEARSIZE | DDSD_PIXELFORMAT)
     h += struct.pack('<I', H)              # dwHeight
     h += struct.pack('<I', W)              # dwWidth
-    h += struct.pack('<I', W * 4)          # dwPitch (linear size)
+    # dwPitchOrLinearSize — the engine's Image_DXTCalcSize uses this field as
+    # the total buffer size when DDSD_LINEARSIZE is set. v0.4.1 shipped W*4
+    # (a pitch) under the DDSD_PITCH flag: the loader then allocated a
+    # 128-BYTE buffer for a 16384-byte texture and heap corruption followed
+    # (trashed sentinel at img_dds.c:420, then system-wide crashes in
+    # libft2/hwui/RefBase). Must be the full pixel size.
+    h += struct.pack('<I', W * H * 4)      # dwLinearSize
     h += struct.pack('<I', 0)              # dwDepth
     h += struct.pack('<I', 1)              # dwMipMapCount
     h += b'\x00' * 44                      # dwReserved1[11]
