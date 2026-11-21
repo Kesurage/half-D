@@ -8,7 +8,7 @@ vec3 DiffuseToGlossmap( vec3 rgb )
 	return glossmap * glossmap;
 }
 
-#if defined( BMODEL_MULTI_LAYERS )
+#if defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
 vec3 DiffuseToGlossmapTerrain( sampler2DArray ColorMap, vec2 texcoord, vec4 mask0, vec4 mask1, vec4 mask2, vec4 mask3 )
 {
 	vec4 res = vec4( 0.0 );

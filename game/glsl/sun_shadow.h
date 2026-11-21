@@ -16,7 +16,17 @@ GNU General Public License for more details.
 #ifndef SUN_SHADOW_H
 #define SUN_SHADOW_H
 
+#ifdef GL4ES
+// half-D: ES 1.00 shadow-sampler emulation, see shadow_proj.h
+uniform sampler2D	u_SunShadowMap;
+vec2 sunshadow2D_hdes( vec3 c )
+{
+	return vec2( step( c.z, texture2D( u_SunShadowMap, c.xy ).r ));
+}
+#define shadow2D( tex, c ) sunshadow2D_hdes( c )
+#else
 uniform sampler2DShadow	u_SunShadowMap;
+#endif
 uniform vec4		u_SunShadowParams;	// x = texel size, y = shadow strength, z = cascade far distance, w = fade band width
 
 // sample the directional shadow map, returns 1.0 fully lit and (1 - strength) fully shadowed.

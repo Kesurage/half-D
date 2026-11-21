@@ -43,7 +43,7 @@ vec3 EmbossFilter( sampler2D ColorMap, vec2 texcoord, float EmbossScale )
     return emboss;
 }
 
-#if defined( BMODEL_MULTI_LAYERS )
+#if defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
 vec3 EmbossFilterTerrain( sampler2DArray ColorMap, vec2 texcoord, vec4 mask0, vec4 mask1, vec4 mask2, vec4 mask3, float EmbossScale )
 {
     vec2 pstep = vec2( EmbossScale ) / vec2( textureSize( ColorMap, 0 ) );

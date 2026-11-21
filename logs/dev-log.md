@@ -254,3 +254,15 @@ v0.1.6 remains the current release awaiting a real report.
 - Engine: load-stage timing in SV_SpawnServer/SV_ActivateServer
   (world, submodels, game activate, settle frames) to attribute the
   36 s loads next run.
+
+## 2026-11-21 — v0.2.3: 384 permutations, 0 failures
+
+- Sandbox restore had rolled the repo back to v0.1.0; origin/main had
+  everything (user: "all progress there"). Hard-reset to 42fc5d9.
+- Built scripts/validate_es100.py: glslang 16.6.0 + ref-preprocessing
+  replication + gl4es translation emulation. Found and fixed every
+  remaining ES 1.00 violation across all 384 permutations in ONE round
+  instead of one bug per device-test round. Final: 0 failing.
+- The validator harness itself needed three emulations: precision
+  injection, f-suffix stripping, legacy GL matrix stubs.
+- Mobile quality preset (gl_mobile_quality) on the GL 2.x path.

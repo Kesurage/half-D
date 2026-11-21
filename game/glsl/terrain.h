@@ -18,7 +18,7 @@ GNU General Public License for more details.
 
 #define colormap2DArray( tex, tc, layer )	texture2DArray( tex, vec3( tc, layer ))
 
-#if defined( BMODEL_MULTI_LAYERS )
+#if defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
 uniform sampler2DArray	u_LayerMap;
 #endif
 

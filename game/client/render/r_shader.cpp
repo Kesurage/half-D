@@ -315,18 +315,34 @@ static bool GL_ProcessShader( const char *filename, CVirtualFS *out, bool compat
 	// (all call sites are sampler2D, waterdrops also uses the bias argument
 	// which texture2D accepts in fragment shaders)
 	if( glConfig.version < 3.0f )
+	{
 		out->Printf( "#define texture texture2D\n" );
+		// half-D: round() and textureLodOffset() are GLSL 1.30+; gl4es passes
+		// them through and Mali rejects them (SMAABlendWeight/Glitch failed
+		// on device). floor(x+0.5) covers every round() overload used; the
+		// offset is added to the coordinate manually (gl4es itself translates
+		// texture2DLod in fragment shaders — Bloom/BlurMip compile on device).
+		out->Printf( "#define round(x) floor((x)+0.5)\n" );
+		out->Printf( "#define textureLodOffset(s,u,l,o) texture2DLod(s,(u)+vec2(o),l)\n" );
+		// generic textureLod() is also GLSL 1.30+ (glitch_fp uses it)
+		out->Printf( "#define textureLod(s,u,l) texture2DLod(s,u,l)\n" );
+	}
 
 	out->Printf( "#ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif\n" );
 	out->Printf( "#ifndef M_PI2\n#define M_PI2 6.28318530717958647692\n#endif\n" );
-	if( GL_Support( R_EXT_GPU_SHADER4 ))
+	// half-D: sampler2DArray exists only in GLSL 1.30+/ES 3.00 — on GL 2.1
+	// contexts (gl4es on Android reports 2.1) the grammar has no such type,
+	// so offering texture arrays made the multi-layer terrain permutations
+	// uncompilable (part of the invisible-ground bug). 2.1 falls back to
+	// the single-texture terrain path.
+	if( GL_Support( R_EXT_GPU_SHADER4 ) && glConfig.version >= 3.0f )
 	{
 		out->Printf( "#extension GL_EXT_gpu_shader4 : require\n" ); // support bitwise ops
 		out->Printf( "#define GLSL_gpu_shader4\n" );
 		if( GL_Support( R_TEXTURE_ARRAY_EXT ))
 			out->Printf( "#define GLSL_ALLOW_TEXTURE_ARRAY\n" );
 	}
-	else if( GL_Support( R_TEXTURE_ARRAY_EXT ))
+	else if( GL_Support( R_TEXTURE_ARRAY_EXT ) && glConfig.version >= 3.0f )
 	{
 	//	out->Printf( "#extension GL_EXT_texture_array : require\n" ); // support texture arrays
 		out->Printf( "#define GLSL_ALLOW_TEXTURE_ARRAY\n" );
@@ -334,7 +350,13 @@ static bool GL_ProcessShader( const char *filename, CVirtualFS *out, bool compat
 	if( defines ) out->Print( defines );
 
 	// user may override this constants
-	out->Printf( "#ifndef MAXSTUDIOBONES\n#define MAXSTUDIOBONES %i\n#endif\n", glConfig.max_skinning_bones );
+	// half-D: permutation defines may carry their own MAXSTUDIOBONES for
+	// uniform-economy bone counts — emitting the default here as well made
+	// every such permutation a macro redefinition, which strict ES 1.00
+	// compilers reject (the "invisible characters" bug: all 373 studio
+	// permutations failed on Mali)
+	if( defines == NULL || Q_strstr( defines, "MAXSTUDIOBONES" ) == NULL )
+		out->Printf( "#ifndef MAXSTUDIOBONES\n#define MAXSTUDIOBONES %i\n#endif\n", glConfig.max_skinning_bones );
 	out->Printf( "#ifndef MAX_LIGHTSTYLES\n#define MAX_LIGHTSTYLES %i\n#endif\n", MAX_LIGHTSTYLES );
 	out->Printf( "#ifndef MAXLIGHTMAPS\n#define MAXLIGHTMAPS %i\n#endif\n", MAXLIGHTMAPS );
 	out->Printf( "#ifndef GRASS_ANIM_DIST\n#define GRASS_ANIM_DIST %f\n#endif\n", GRASS_ANIM_DIST );

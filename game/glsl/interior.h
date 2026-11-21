@@ -149,15 +149,15 @@ vec4 InteriorMapping( vec4 diffuse, vec2 TexDiffuse, vec3 N, float Time, vec3 Vi
 
 	// randomize room positions
 	if (staticVal <= 0.2)
-        diffuse = diffuse * diffuse.a + interior0 * (1 - diffuse.a);
+        diffuse = diffuse * diffuse.a + interior0 * (1.0 - diffuse.a);
     else if (staticVal <= 0.4)
-        diffuse = diffuse * diffuse.a + interior1 * (1 - diffuse.a);
+        diffuse = diffuse * diffuse.a + interior1 * (1.0 - diffuse.a);
     else if (staticVal <= 0.6)
-        diffuse = diffuse * diffuse.a + interior2 * (1 - diffuse.a);
+        diffuse = diffuse * diffuse.a + interior2 * (1.0 - diffuse.a);
     else if (staticVal <= 0.8)
-        diffuse = diffuse * diffuse.a + interior3 * (1 - diffuse.a);
+        diffuse = diffuse * diffuse.a + interior3 * (1.0 - diffuse.a);
     else
-        diffuse = diffuse * diffuse.a + interior4 * (1 - diffuse.a);
+        diffuse = diffuse * diffuse.a + interior4 * (1.0 - diffuse.a);
 
 	return diffuse;
 }

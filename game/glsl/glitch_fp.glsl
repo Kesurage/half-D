@@ -15,19 +15,13 @@ uniform vec4 u_Glitch;
 
 #define SS(a, b, x) (smoothstep(a, b, x) * smoothstep(b, a, x))
 
-#define UI0 1597334673U
-#define UI1 3812015801U
-#define UI11 2798796415U
-#define UI2 uvec2(UI0, UI1)
-#define UI3 uvec3(UI0, UI1, UI11)
-const float UIF = (1.0 / float(0xffffffffU));
-
-// Hash by David_Hoskins
+// half-D: the original uint-based hash (uvec3, U-suffix literals) needs
+// GLSL 1.30+, unavailable under ES 1.00 on gl4es — float hash instead
 vec3 hash33(vec3 p)
 {
-	uvec3 q = uvec3(ivec3(p)) * UI3;
-	q = (q.x ^ q.y ^ q.z)*UI3;
-	return -1. + 2. * vec3(q) * UIF;
+	p = fract( p * vec3( 0.1031, 0.1030, 0.0973 ));
+	p += dot( p, p.yxz + 33.33 );
+	return -1.0 + 2.0 * fract(( p.xxy + p.yxx ) * p.zyx );
 }
 
 // Gradient noise by iq

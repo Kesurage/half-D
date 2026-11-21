@@ -113,6 +113,7 @@ cvar_t *r_polyoffset;
 cvar_t *r_grass;
 cvar_t *r_grass_lighting;
 cvar_t *r_grass_shadows;
+cvar_t *gl_mobile_quality;
 cvar_t *r_grass_fade_start;
 cvar_t *r_grass_fade_dist;
 cvar_t *r_show_renderpass;
@@ -457,6 +458,7 @@ void V_Init( void )
 	r_decals_ext = CVAR_REGISTER( "r_decals_ext", "1", FCVAR_ARCHIVE );
 	gl_fsr = CVAR_REGISTER( "gl_fsr", "0", FCVAR_ARCHIVE );
 	cl_gunsmoke = CVAR_REGISTER( "cl_gunsmoke", "1", FCVAR_ARCHIVE );
+	gl_mobile_quality = CVAR_REGISTER( "gl_mobile_quality", "1", FCVAR_ARCHIVE );
 
 	// cubemaps
 	gEngfuncs.pfnAddCommand( "buildcubemaps", CL_BuildCubemaps_f );
@@ -474,6 +476,28 @@ void V_Init( void )
 
 void V_VidInit( void )
 {
+	// half-D: mobile quality preset. The GL 2.x path (gl4es/ES on phones)
+	// pays heavily for per-frame postfx and shadow passes — default to a
+	// tuned preset there so the game is playable. Set gl_mobile_quality 0
+	// to keep full effects, or change individual cvars afterwards.
+	if( glConfig.version < 3.0f && CVAR_TO_BOOL( gl_mobile_quality ))
+	{
+		gl_renderscale->value = 0.85f;        // render at 85%, upscale
+		gl_shadows->value = 0.0f;             // dlight shadow passes
+		r_sun_shadow->value = 0.0f;           // sun shadow passes
+		r_grass_shadows->value = 0.0f;        // grass depth pass
+		r_grass_fade_start->value = 512.0f;
+		r_grass_fade_dist->value = 1024.0f;
+		gl_sunshafts->value = 0.0f;
+		gl_exposure->value = 0.0f;
+		gl_lensflare->value = 0.0f;
+		gl_water_refraction->value = 0.0f;
+		gl_allow_portals->value = 0.0f;       // portal recursion
+		r_mirrorquality->value = 1.0f;
+		r_blur->value = 0.0f;                 // DoF blur
+		ConPrintf( "renderer: mobile quality preset applied (gl_mobile_quality 1)\n" );
+	}
+
 	PrevViewAngles = g_vecZero;
 	PrevViewOrg = g_vecZero;
 	gun_roll_angle = 0;

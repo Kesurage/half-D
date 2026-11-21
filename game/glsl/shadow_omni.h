@@ -16,7 +16,19 @@ GNU General Public License for more details.
 
 #define NUM_SAMPLES		4.0
 
+#ifdef GL4ES
+// half-D: GLSL ES 1.00 has no samplerCubeShadow/shadowCube (GLSL 1.30).
+// The omnidirectional shadow cubemap is sampled as a regular samplerCube
+// and the depth comparison is done manually — see shadow_proj.h
+uniform samplerCube	u_ShadowMap;
+vec2 shadowCube_hdes( vec4 c )
+{
+	return vec2( step( c.w, textureCube( u_ShadowMap, c.xyz ).r ));
+}
+#define shadowCube( tex, c ) shadowCube_hdes( c )
+#else
 uniform samplerCubeShadow	u_ShadowMap;
+#endif
 
 #define SHADOW_VOGEL_DISK  // uncomment this to enable smoothing
 

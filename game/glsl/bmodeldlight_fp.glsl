@@ -28,7 +28,7 @@ GNU General Public License for more details.
 #endif
 #include "alpha2coverage.h"
 
-#if defined( BMODEL_MULTI_LAYERS )
+#if defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
 uniform sampler2DArray	u_ColorMap;
 uniform sampler2DArray	u_NormalMap;
 uniform float   	u_DynLightBrightness[TERRAIN_NUM_LAYERS];
@@ -104,7 +104,7 @@ void main( void )
 	float shadow = 1.0;
 
 	// compute the masks for terrain
-#if defined( BMODEL_MULTI_LAYERS )
+#if defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
 	vec4 mask0, mask1, mask2, mask3;
 	TerrainReadMask( var_TexGlobal, mask0, mask1, mask2, mask3 );
 #endif
@@ -143,7 +143,7 @@ void main( void )
 #endif
 
 	// get diffuse texture and check alpha
-#if defined( BMODEL_MULTI_LAYERS )
+#if defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
 	diffuse = TerrainApplyDiffuse( u_ColorMap, var_TexDiffuse, mask0, mask1, mask2, mask3 );
 #else
 	#if defined( BMODEL_WATER )
@@ -172,7 +172,7 @@ void main( void )
 	// rotate water normal to worldpsace
 	vec3 WaterNormal = normalmap2D( u_NormalMap, var_TexDiffuse );
 	N = WaterNormal;
-#elif defined( BMODEL_MULTI_LAYERS )
+#elif defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
 	#if defined( BMODEL_BUMP )
 		N = TerrainApplyNormal( u_NormalMap, var_TexDiffuse, mask0, mask1, mask2, mask3 );
 	#else
@@ -194,7 +194,7 @@ void main( void )
 	float EmbossScale = 0.0;
 
 	// compute the material defines
-#if defined( BMODEL_MULTI_LAYERS )
+#if defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
 	float InitGlossScale[TERRAIN_NUM_LAYERS];
 	float InitGlossSmoothness[TERRAIN_NUM_LAYERS];
 	float InitEmbossScale[TERRAIN_NUM_LAYERS];
@@ -226,7 +226,7 @@ void main( void )
 #endif
 
 	// compute specular and emboss term
-#if defined( BMODEL_MULTI_LAYERS )
+#if defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
 	#if defined( BMODEL_SPECULAR )
 		glossmap = DiffuseToGlossmapTerrain( u_ColorMap, var_TexDiffuse, mask0, mask1, mask2, mask3 );
 	#endif
@@ -253,7 +253,7 @@ void main( void )
 
 #if defined( BMODEL_INTERIOR )
 	if( diffuse.a < 0.98 )
-		diffuse = InteriorMapping( diffuse, var_TexDiffuse, N, 0, var_ViewVec, var_Position ); // u_realtime is currently not used
+		diffuse = InteriorMapping( diffuse, var_TexDiffuse, N, 0.0, var_ViewVec, var_Position ); // u_realtime is currently not used
 #endif
 
 #if defined( BMODEL_BUMP )

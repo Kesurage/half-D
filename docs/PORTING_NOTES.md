@@ -452,3 +452,30 @@ background alone draws 280k studio polys. Two new facts:
 Still open: glitchy character animations (needs a look once the ground
 renders — may be timing starvation at 12 fps), missing car models and
 HL1 pain sounds (mod content, not the port), chapter-save probes.
+
+## 19. v0.2.3: the validator round
+
+No device log this time — we built one instead. `scripts/validate_es100.py`
+replays the ref's exact preprocessing (prefix defines, include expansion,
+permutation defines from r_shaderlist.h) for all 384 permutations and
+compiles each with glslangValidator under GLSL ES 1.00 rules, emulating
+gl4es translation (precision qualifiers in, f-suffixes out, legacy GL
+matrices stubbed). Mali's strictness is fully reproducible offline.
+
+Findings, fixed in one pass:
+- MAXSTUDIOBONES macro redefinition (prefix default + permutation define)
+  killed all 373 studio permutations — the "invisible characters".
+- sampler2DArray in the unguarded BMODEL_MULTI_LAYERS terrain blocks
+  (specular.h, emboss.h, terrain.h, both bmodel fps) can never compile
+  under ES 1.00 — part of the invisible ground. GL 2.1 now falls back to
+  the single-texture terrain path.
+- InteriorMapping( ..., 0, ... ), (1 - diffuse.a), mod(x, 4), <= 50,
+  M_PI/180 — int literals in float contexts again.
+- glitch_fp used uvec3 hashing (GLSL 1.30+) — float hash33 now.
+- shadow sampling used GLSL 1.30 shadow samplers; under GL4ES the depth
+  maps are sampled as regular textures and compared with step() — real
+  filtering (Vogel disk, PCF) preserved.
+- SMAA/Glitch needed round()/textureLod/textureLodOffset shims.
+
+Perf: gl_mobile_quality preset (default on GL 2.x) turns off the
+per-frame effects the heartbeat showed costing the most.

@@ -36,7 +36,7 @@ GNU General Public License for more details.
 #include "screen.h"
 #endif
 
-#if defined( BMODEL_MULTI_LAYERS )
+#if defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
 uniform sampler2DArray	u_ColorMap;
 uniform sampler2DArray	u_NormalMap;
 #if defined( BMODEL_SPECULAR )
@@ -130,7 +130,7 @@ void main( void )
 		planar_reflection = reflectmap2D( u_ColorMap, var_TexMirror, N, gl_FragCoord.xyz, 0.15 ) * u_PlanarReflectScale;
 		diffuse = planar_reflection;
 	#endif
-#elif defined( BMODEL_MULTI_LAYERS )
+#elif defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
 	// compute the masks for terrain
 	vec4 mask0, mask1, mask2, mask3;
 	TerrainReadMask( var_TexGlobal, mask0, mask1, mask2, mask3 );
@@ -169,7 +169,7 @@ void main( void )
 			vec3 WaterNormal = normalmap2D( u_NormalMap, var_TexDiffuse );
 			N = normalize( WaterNormal );
     	#endif 
-#elif defined( BMODEL_MULTI_LAYERS )
+#elif defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
 	#if defined( BMODEL_BUMP )
 		N = TerrainApplyNormal( u_NormalMap, var_TexDiffuse, mask0, mask1, mask2, mask3 );
 	#endif	
@@ -191,7 +191,7 @@ void main( void )
 	float EmbossScale = 0.0;
 
 	// compute the material defines
-#if defined( BMODEL_MULTI_LAYERS )
+#if defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
 	float InitGlossScale[TERRAIN_NUM_LAYERS];
 	float InitGlossSmoothness[TERRAIN_NUM_LAYERS];
 	float InitEmbossScale[TERRAIN_NUM_LAYERS];
@@ -234,7 +234,7 @@ void main( void )
 		planar_reflection = reflectmap2D( u_ColorMap, var_TexMirror, N, gl_FragCoord.xyz, 0.15 ) * u_PlanarReflectScale;
 		diffuse = planar_reflection;
 	#endif
-#elif defined( BMODEL_MULTI_LAYERS )
+#elif defined( BMODEL_MULTI_LAYERS ) && defined( GLSL_ALLOW_TEXTURE_ARRAY )
 	#if defined( BMODEL_SPECULAR )
 		glossmap = DiffuseToGlossmapTerrain( u_ColorMap, var_TexDiffuse, mask0, mask1, mask2, mask3 );
 	#endif
@@ -322,7 +322,7 @@ void main( void )
 
 #if defined( BMODEL_INTERIOR )
 	if( diffuse.a < 0.98 )
-		diffuse = InteriorMapping( diffuse, var_TexDiffuse, N, 0, var_ViewVec, var_Position ); // u_realtime is currently not used
+		diffuse = InteriorMapping( diffuse, var_TexDiffuse, N, 0.0, var_ViewVec, var_Position ); // u_realtime is currently not used
 #endif
 
 //------------------------------------------------------------------------------------------------------

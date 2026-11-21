@@ -126,3 +126,22 @@
      — world model, submodels, game-DLL activate (precache+spawn), settle
      frames each print a duration, to attribute the 32-36 s chapter loads
      seen in the v0.2.1 device log.
+
+  19. glsl (v0.2.3): offline ES 1.00 validator sweep — all 384 permutations
+     now compile under Mali-strict rules. interior.h (1 - diffuse.a) x5,
+     InteriorMapping(..., 0, ...) float-param x4, grass mod(x,4)/<=50 int
+     literals, glitch_fp uint/uvec hash replaced with float hash33,
+     shadow samplers (sampler2DShadow/samplerCubeShadow/shadow2D/shadowCube
+     are GLSL 1.30+) emulated under GL4ES via depth-texture + step(),
+     BMODEL_MULTI_LAYERS sampler2DArray blocks gated on
+     GLSL_ALLOW_TEXTURE_ARRAY (the type does not exist in the ES 1.00
+     grammar — terrain fell back to single-texture on GL 2.1).
+  20. render (v0.2.3): prefix no longer emits MAXSTUDIOBONES when the
+     permutation defines its own (macro redefinition killed all 373
+     studio permutations on Mali = invisible characters); round()/
+     textureLod()/textureLodOffset() shims on the GL 2.x path;
+     GLSL_ALLOW_TEXTURE_ARRAY only on GL 3.0+.
+  21. render (v0.2.3): mobile quality preset (gl_mobile_quality, default 1
+     on GL 2.x) — renderscale 0.85, shadows/sun-shadow/grass-shadows off,
+     sunshafts/exposure/lensflare/water-refraction/portals/DoF off,
+     mirror quality 1, grass fade 512-1024.
