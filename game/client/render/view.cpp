@@ -116,6 +116,7 @@ cvar_t *r_grass_shadows;
 cvar_t *r_grass_fade_start;
 cvar_t *r_grass_fade_dist;
 cvar_t *r_show_renderpass;
+cvar_t *gl_diag;
 cvar_t *r_show_light_scissors;
 cvar_t *r_show_normals;
 cvar_t *r_show_lightprobes;
@@ -408,6 +409,7 @@ void V_Init( void )
 	r_drawsprites = CVAR_REGISTER( "r_drawsprites", "1", FCVAR_CHEAT );
 	r_sprites_batch = CVAR_REGISTER( "r_sprites_batch", "1", FCVAR_ARCHIVE );
 	r_show_renderpass = CVAR_REGISTER( "r_show_renderpass", "0", 0 );
+	gl_diag = CVAR_REGISTER( "gl_diag", "1", FCVAR_ARCHIVE ); // half-D: perf heartbeat + shader compile trace in engine.log
 	r_show_light_scissors = CVAR_REGISTER( "r_show_light_scissors", "0", 0 );
 	r_show_normals = CVAR_REGISTER( "r_show_normals", "0", 0 );
 	r_show_lightprobes = CVAR_REGISTER( "r_show_lightprobes", "0", 0 );

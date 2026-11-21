@@ -104,3 +104,15 @@
      screen water, monochrome, sharpen, sun shafts, SSAO...) was a 4 MB
      CPU readback per frame per effect (~4 fps on Mali-G57). RGBA makes
      them native GPU copies; the effects stay enabled.
+
+  15. render (v0.2.1): diagnostics layer — a failed GLSL permutation is now
+     cached as failed (upstream wiped it, so every runtime request re-ran a
+     100-300 ms driver compile: the mid-game fps dips); every program
+     compile is logged with options + duration; a 5-second performance
+     heartbeat (fps, frame ms, scene polys) and >150 ms spike lines go to
+     engine.log, gated by gl_diag (default on).
+  16. glsl (v0.2.1): interior.h/bmodelsolid/bmodeldlight had 'const float
+     x = 500;' / '= -4096;' — int literals. Strict GLSL ES 1.00 (the Mali
+     GLES2 path through gl4es) has no implicit int->float conversion, so
+     every BMODEL_INTERIOR / BMODEL_WATER_REFRACTION permutation failed
+     with S0001 — the invisible terrain. Made them float literals.

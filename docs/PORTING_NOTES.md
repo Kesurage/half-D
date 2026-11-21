@@ -400,3 +400,31 @@ Also: the sandbox restored a stale Nov-20 clone again this round (HEAD
 at v0.1.0-era, no v0.1.9 files) - recovered with fetch + reset to
 origin/main before patching. Check `git log --oneline -1` first, every
 session.
+
+## 17. v0.2.0 post-mortem: the ground was an int literal
+
+The v0.2.0 log narrowed the world to one error: every BmodelSolid/
+BmodelDlight failure carried BMODEL_INTERIOR or BMODEL_WATER_REFRACTION,
+and Mali's S0001 'cannot convert from int to float' pointed at the only
+int-literal float consts in the whole GLSL tree: interior.h's
+'const float staticSeed = 500;' and u_zFar = -4096 in both bmodel
+shaders. Desktop GLSL 120 accepts those; strict GLSL ES 1.00 — which is
+what the Mali GLES2 path enforces through gl4es — has no implicit
+conversions at all. Three '.0' suffixes restore the terrain, interiors
+and water.
+
+The dips had a separate cause: upstream wipes a failed program without
+registering it in the hash, so every runtime request for a broken
+permutation re-ran a full driver compile (100-300 ms on Mali). v0.2.1
+adds a negative cache (fail fast) plus the diagnostics layer the device
+tests needed all along: per-program compile trace with options and
+duration, a 5-second perf heartbeat (fps / avg / worst frame ms / scene
+polys / negcache hits) and individual >150 ms spike lines — all gated by
+gl_diag, default on, failures always printed.
+
+Still open from this round: glitchy character animations (studio
+sequence lerping — needs the heartbeat data), two missing car models
+(bmec/bmec2 — not in the mod's shipped content), missing HL1 pain
+sounds (mod references sounds it doesn't ship), and chapter-transition
+save probes (save/ch1map1a.HL1 'couldn't open' — the game probes
+optional saves, seems benign, watching it).

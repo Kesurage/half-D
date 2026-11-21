@@ -268,7 +268,7 @@ void main( void )
 	alpha *= 0.015; // magic as well...
 
 	float WaterAbsorbFactor = 1.0;
-	const float u_zFar = -4096; // for consistency
+	const float u_zFar = -4096.0; // for consistency // half-D: int literal is a type error on strict GLSL ES 1.00 (Mali S0001)
 
 	float fOwnDepth = gl_FragCoord.z;
 	fOwnDepth = linearizeDepth( u_zFar, fOwnDepth );

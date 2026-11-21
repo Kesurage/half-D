@@ -331,7 +331,7 @@ void main( void )
 	
 	float WaterBorderFactor = 1.0, WaterAbsorbFactor = 1.0, WaterRefractFactor = 1.0, WaterAbsorbScale = 1.0;
 	float RefractScale = 0.25; 
-	const float u_zFar = -4096; // for consistency
+	const float u_zFar = -4096.0; // for consistency // half-D: int literal is a type error on strict GLSL ES 1.00 (Mali S0001)
 
 	// alpha works well between 67-135~... so I need to remap 0-255 to 67-135~. how to fix this?
 	alpha = RemapVal( alpha, vec4( 0.0, 1.0, 0.263, 0.500 ) );

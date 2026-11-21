@@ -14,6 +14,7 @@ GNU General Public License for more details.
 */
 
 #include "hud.h"
+#include <chrono>
 #include "utils.h"
 #include "const.h"
 #include "r_local.h"
@@ -34,6 +35,16 @@ static int compiled_failed_total = 0;
 
 #define SHADERS_HASH_SIZE	(MAX_GLSL_PROGRAMS >> 2)
 #define MAX_FILE_STACK	64
+
+// half-D: negative cache for failed GLSL permutations. Upstream wipes a
+// failed program without registering it in the hash, so every runtime
+// request for the same broken permutation re-ran a full driver compile
+// (100-300 ms each on the Mali GLES2 path — the mid-game fps dips in the
+// v0.2.0 device log). Remember the failure and fail fast instead.
+#define MAX_FAILED_PERMUTATIONS 96
+static char	r_failedPermutations[MAX_FAILED_PERMUTATIONS][MAX_OPTIONS_LENGTH + 64];
+static int	r_numFailedPermutations = 0;
+int		r_negcacheHits = 0;
 
 static char	filenames_stack[MAX_FILE_STACK][256];
 glsl_program_t	glsl_programs[MAX_GLSL_PROGRAMS];
@@ -590,6 +601,19 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 	find = va( "%s %s", glname, defines );
 	hash = COM_HashKey( find, SHADERS_HASH_SIZE );
 
+	// half-D: fail fast if this exact permutation already failed this session
+	if( r_numFailedPermutations > 0 )
+	{
+		for( int j = 0; j < r_numFailedPermutations; j++ )
+		{
+			if( !Q_strcmp( r_failedPermutations[j], find ))
+			{
+				r_negcacheHits++;
+				return NULL;
+			}
+		}
+	}
+
 	// check for coexist
 	for( prog = glsl_programsHashTable[hash]; prog != NULL; prog = prog->nextHash )
 	{
@@ -692,6 +716,9 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 	}
 
 	// Fallback: compile from source
+	// half-D: time the compile for the diagnostics heartbeat
+	std::chrono::steady_clock::time_point compileT0 = std::chrono::steady_clock::now();
+
 	if( vpname )
 		GL_LoadGPUShader( shader, vpname, GL_VERTEX_SHADER_ARB, false, defines );
 
@@ -720,7 +747,13 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 	{
 		// half-D: unconditional — ALERT() is silenced without -dev, so
 		// shader compile/link failures never showed up in engine.log
-		gEngfuncs.Con_Printf( "^1shader '%s' failed to compile/link^7\n", glname );
+		float compileMs = std::chrono::duration<float>( std::chrono::steady_clock::now() - compileT0 ).count() * 1000.0f;
+		gEngfuncs.Con_Printf( "^1shader '%s' [%s] failed to compile/link^7 after %.1f ms — caching as failed, will not retry this session\n",
+			glname, GL_PretifyListOptions( defines ), compileMs );
+
+		if( r_numFailedPermutations < MAX_FAILED_PERMUTATIONS )
+			Q_strncpy( r_failedPermutations[r_numFailedPermutations++], find, MAX_OPTIONS_LENGTH + 64 );
+
 		if( shader->handle ) pglDeleteObjectARB( shader->handle );
 		memset( shader, 0, sizeof( *shader ) );
 		if( i == num_glsl_programs - 1 ) num_glsl_programs--;
@@ -764,6 +797,15 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 
 			Mem_Free( buffer );
 		}
+	}
+
+	// half-D: compile trace — one line per program so device logs show
+	// exactly which permutations built and what they cost
+	if( CVAR_TO_BOOL( gl_diag ))
+	{
+		float compileMs = std::chrono::duration<float>( std::chrono::steady_clock::now() - compileT0 ).count() * 1000.0f;
+		gEngfuncs.Con_Printf( "shader '%s' [%s] compiled+linked in %.1f ms\n",
+			glname, GL_PretifyListOptions( defines ), compileMs );
 	}
 
 	// add to hash table

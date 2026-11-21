@@ -226,3 +226,18 @@ v0.1.6 remains the current release awaiting a real report.
   passes glCopyTexSubImage2D to the driver for RGBA/UBYTE - every post
   effect did a 4MB CPU readback per frame. TF_SCREEN |= TF_HAS_ALPHA
   makes them RGBA: native GPU copies, effects stay on.
+
+## 2026-11-21 — v0.2.1: three '.0' suffixes and the instrument we needed
+
+- v0.2.0 device log: 10 fps (up from 4), trees/cars/characters visible,
+  cutscenes render. Ground still missing: BmodelSolid/BmodelDlight fail
+  'S0001 int->float' on every permutation — all carry BMODEL_INTERIOR
+  or BMODEL_WATER. Root cause: int-literal float consts (staticSeed=500,
+  u_zFar=-4096 x2). Strict ES 1.00 has no implicit conversions; desktop
+  120 does. Fixed with float literals.
+- Dips: failed programs wiped without hash registration -> every request
+  re-compiled on the driver. Added the negative cache.
+- Built the diagnostics layer (user request): compile trace, 5s perf
+  heartbeat, >150ms spike lines, gl_diag cvar default-on.
+- Syntax-checked r_shader.cpp/r_main.cpp locally with g++ -fsyntax-only
+  (clean) before pushing to CI.

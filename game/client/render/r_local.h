@@ -576,6 +576,7 @@ extern model_t		*worldmodel;
 extern ref_instance_t	*RI;
 extern ref_globals_t	tr;
 extern ref_stats_t		r_stats;
+extern int		r_negcacheHits; // half-D: shader permutations skipped via the failed-program cache
 extern cl_entity_t		*v_intermission_spot;
 extern plight_t		cl_plights[MAX_PLIGHTS];
 #define r_numEntities	(tr.num_solid_entities + tr.num_trans_entities - r_stats.c_client_ents)

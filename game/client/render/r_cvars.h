@@ -62,6 +62,7 @@ extern cvar_t	*gl_check_errors;
 extern cvar_t	*vid_gamma;
 extern cvar_t	*vid_brightness;
 extern cvar_t	*r_show_renderpass;
+extern cvar_t	*gl_diag;
 extern cvar_t	*r_show_light_scissors;
 extern cvar_t	*r_show_normals;
 extern cvar_t	*r_show_lightprobes;
