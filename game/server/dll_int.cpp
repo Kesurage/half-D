@@ -35,16 +35,11 @@ enginefuncs_t g_engfuncs;
 globalvars_t *gpGlobals;
 server_physics_api_t g_physfuncs;
 
-#if defined(__ANDROID__) || defined(ANDROID)
-#include <unistd.h>
-extern "C" int android_getCpuCount(void)
-{
-	long count = sysconf(_SC_NPROCESSORS_ONLN);
-	if (count <= 0)
-		count = sysconf(_SC_NPROCESSORS_CONF);
-	return count > 0 ? (int)count : 1;
-}
-#endif
+// half-D: upstream (yalnie) defines an android_getCpuCount() sysconf
+// fallback here for builds without the NDK cpufeatures. Our build always
+// compiles the vendored physics/physx/cpu-features.c (PhysX android paths
+// need it), which already provides the symbol — a second definition is a
+// duplicate-symbol link error, so the block is dropped in half-D.
 
 // Main DLL entry point
 #if XASH_WIN32
