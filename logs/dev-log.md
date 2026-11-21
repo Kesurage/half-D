@@ -367,3 +367,40 @@ likely BC7 without BPTC), upload-fail message += pixel format name.
 Open: menu bg map still renders 282k epoly studio geometry (~100 ms
 scene at 11 fps in-game is playable; menu usable once blur is gone);
 fleck/glass_gib/sky/lambda = missing mod content.
+
+## 2026-11-21 — v0.4.1: the crash was the options UI re-arming the readbacks
+
+v0.4.0 device log verdict: all four fixes verified live (no shadow-texture
+errors, FiraSans loaded, program_binary yes, precompile ran). But the
+crash survived, load still 25 s, and "Loaded 832 shaders: 279 failed"
+with zero error output.
+
+- CRASH ROOT CAUSE: the video options presets (menus/VideoOptions.cpp)
+  set r_bloom 1, gl_sunshafts 1, r_blur 1, gl_hbao 1, gl_water_refraction
+  1... — each re-enables a per-frame fullscreen pglCopyTexSubImage2D
+  readback that the mobile preset had turned off once at init. Selecting
+  any graphics option re-arms the gl4es readback cliff -> multi-second
+  frames -> GPU watchdog kills game and device. FIX: one hard gate
+  (R_AllowScreenCaptureFX) at the top of all 11 capture functions
+  (sunshafts, motionblur, gauss, hblur, screenwater, glitch, monochrome,
+  ssao, bloom, FSR, downscale). On the GL2 path they stay off no matter
+  what the cvars say; gl_mobile_quality 0 opts back in. r_menu_blur from
+  v0.4.0 becomes redundant but stays.
+- 279 shader failures were silent because ALERT() is a no-op without
+  developer mode. Code analysis: 169 HAS_SHADOWS + 196 SUN_SHADOW
+  permutations use sampler2DShadow/shadow2DOffset, which gl4es cannot
+  translate (the GL_ES fallbacks in shadow_*.h don't apply — gl4es
+  presents desktop GL 2.1, so GL_ES is never defined). Failed
+  permutations are not hashed, so runtime requests retried a full driver
+  compile every frame. FIXES: negative cache (failures remembered, never
+  retried this session), always-on throttled failure logging with
+  name/options/stage, and a precompile filter that skips the ~413
+  device-impossible entries (shadow-sampler + texture-array defines).
+- 25 s world load: the heap-stage timers from v0.4.0 printed NOTHING,
+  so the thief is before them. Now timed: studio-cache purge, FS file
+  read (with MB), lump byte-swap, FindBSPX, raw lump loop.
+- raindrop.dds is BC7 SRGB (device-confirmed) — Mali has no BPTC via
+  gl4es. Shipped an uncompressed BGRA replacement (32x128 procedural
+  streak, tools/make_raindrop.py) in the libs zip.
+- Heartbeat now reports dips/passes/binds to tell draw-call-bound from
+  geometry-bound in the ~100 ms scene stage.

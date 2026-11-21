@@ -2264,10 +2264,11 @@ static void R_DiagFrame( void )
 
 	if( windowS >= 5.0f )
 	{
-		gEngfuncs.Con_Printf( "perf: ^2%.1f fps^7 | frame avg %.1f ms, worst %.0f ms | wpoly %d epoly %d spoly %d grass %d | stage ms: scene %.0f postfx %.0f anim %.1f cube %.1f\n",
+		gEngfuncs.Con_Printf( "perf: ^2%.1f fps^7 | frame avg %.1f ms, worst %.0f ms | wpoly %d epoly %d spoly %d grass %d | dips %d passes %d binds %d | stage ms: scene %.0f postfx %.0f anim %.1f cube %.1f\n",
 			windowFrames / windowS, windowS * 1000.0f / windowFrames, worstMs,
 			r_stats.c_world_polys, r_stats.c_studio_polys,
 			r_stats.c_sprite_polys, r_stats.c_grass_polys,
+			(int)r_stats.dip_count, (int)r_stats.num_passes, (int)r_stats.num_shader_binds,
 			r_diag_ms_scene / windowFrames, r_diag_ms_postfx / windowFrames,
 			r_diag_ms_animatex / windowFrames, r_diag_ms_cubemaps / windowFrames );
 

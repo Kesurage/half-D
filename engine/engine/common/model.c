@@ -325,7 +325,11 @@ static model_t *Mod_LoadModel( model_t *mod, qboolean crash )
 	Q_strncpy( tempname, mod->name, sizeof( tempname ));
 	COM_FixSlashes( tempname );
 
+	// half-D: time the file read itself (storage I/O was never visible)
+	double fsT0 = Platform_DoubleTime();
 	byte *buf = FS_LoadFile( tempname, &length, false );
+	if( Platform_DoubleTime() - fsT0 > 1.0 )
+		Con_Printf( "load: read %s (%.2f MB) in %.2f s\n", tempname, (float)length / 1048576.0f, Platform_DoubleTime() - fsT0 );
 
 	if( !buf || length < sizeof( uint ))
 	{
@@ -504,7 +508,12 @@ model_t *Mod_LoadWorld( const char *name, qboolean preload )
 		return mod_known;
 
 	// free sequence files on studiomodels
+	// half-D: load-stage timing — the device log showed 25 s world loads
+	// that were NOT in the BSP heap stages, so time every phase left
+	double purgeT0 = Platform_DoubleTime();
 	Mod_PurgeStudioCache();
+	if( Platform_DoubleTime() - purgeT0 > 1.0 )
+		Con_Printf( "load: purge studio cache in %.2f s\n", Platform_DoubleTime() - purgeT0 );
 
 	// load the newmap
 	world.loading = true;

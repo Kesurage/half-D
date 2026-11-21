@@ -163,6 +163,12 @@ jobs:
         # engine default font (v0.1.1 device log). FiraSans is SIL OFL.
         mkdir -p pkg/diffusion/gfx/fonts
         cp ../assets/fonts/FiraSans-Regular.ttf pkg/diffusion/gfx/fonts/
+        # half-D: the itch package ships gfx/particles/raindrop.dds as BC7
+        # SRGB, which Mali cannot decode through gl4es (no BPTC — the device
+        # log showed "texture upload failed (format BC7 SRGB)"). Replace it
+        # with the uncompressed DDS built by tools/make_raindrop.py.
+        mkdir -p pkg/diffusion/gfx/particles
+        cp ../assets/particles/raindrop.dds pkg/diffusion/gfx/particles/
         cd pkg && zip -r ../diffusion-android-aarch64-libs.zip diffusion
 
     - name: Upload game libs artifact

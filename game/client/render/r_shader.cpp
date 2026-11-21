@@ -377,6 +377,16 @@ static void GL_LoadGPUShader( glsl_program_t *shader, const char *name, GLenum s
 
 	if( !compiled )
 	{
+		// half-D: ALERT() and the developer_level prints are invisible in
+		// normal mode — always log shader compile failures, throttled
+		static int compileFailsLogged = 0;
+		if( compileFailsLogged < 25 )
+		{
+			Msg( "^1half-D: couldn't compile %s^7 options:%s\n", filename, GL_PretifyListOptions( defines ));
+			Msg( "%s", GL_PrintInfoLog( object ));
+			compileFailsLogged++;
+		}
+
 		if( developer_level ) Msg( "%s", GL_PrintInfoLog( object ));
 		if( developer_level ) Msg( "Shader options:%s\n", GL_PretifyListOptions( defines ));
 		ALERT( at_error, "Couldn't compile %s\n", filename );
@@ -596,6 +606,12 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 	{
 		if( !Q_strcmp( prog->name, glname ) && !Q_strcmp( prog->options, defines ) )
 		{
+			// half-D: negative cache — this permutation already failed to
+			// compile/link this session. Never retry: each retry was a full
+			// driver compile attempt (hundreds of ms, GPU-watchdog bait).
+			if( !prog->handle )
+				return NULL;
+
 			prog->status |= SHADER_STATUS_HASHED;
 			return prog;
 		}
@@ -721,9 +737,27 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 
 	if( !FBitSet( shader->status, SHADER_PROGRAM_LINKED ) || !FBitSet( shader->status, SHADER_VERTEX_COMPILED ) || !FBitSet( shader->status, SHADER_FRAGMENT_COMPILED ) )
 	{
+		// half-D: ALERT() is silenced without developer mode — 279 permutations
+		// failed on device with zero explanation. Always log, throttled.
+		static int failedLogged = 0;
+		if( failedLogged < 25 )
+		{
+			Msg( "^1half-D: shader FAILED:^7 %s [%s] (vp %s, fp %s, linked %s)\n", glname,
+				defines ? defines : "",
+				FBitSet( shader->status, SHADER_VERTEX_COMPILED ) ? "ok" : "NO",
+				FBitSet( shader->status, SHADER_FRAGMENT_COMPILED ) ? "ok" : "NO",
+				FBitSet( shader->status, SHADER_PROGRAM_LINKED ) ? "ok" : "NO" );
+			if( shader->handle ) Msg( "%s", GL_PrintInfoLog( shader->handle ));
+			failedLogged++;
+		}
+
 		if( shader->handle ) pglDeleteObjectARB( shader->handle );
-		memset( shader, 0, sizeof( *shader ) );
-		if( i == num_glsl_programs - 1 ) num_glsl_programs--;
+		// half-D: keep the slot as a negative-cache entry (see the hash lookup
+		// above) so the failed permutation is never recompiled this session
+		shader->handle = 0;
+		shader->status = SHADER_STATUS_HASHED;
+		shader->nextHash = glsl_programsHashTable[hash];
+		glsl_programsHashTable[hash] = shader;
 		return NULL;
 	}
 
@@ -3008,6 +3042,26 @@ bool GL_PrecompileUberShaders( int &processed, int &total )
 	{
 		if( curshader.glname == NULL )
 			break; // end of the list - finalize next frame
+
+		// half-D: skip permutations this device can never use. gl4es has no
+		// shadow samplers (sampler2DShadow/shadow2DOffset fail to translate —
+		// the GL_ES fallbacks in shadow_*.h don't apply because gl4es presents
+		// desktop GL 2.1), and no texture arrays (terrain falls back to 2D
+		// single-layer). Without this filter ~413 of 1111 entries burn compile
+		// time and surface as failures on every first launch.
+		{
+			const bool noShadowPath = tr.shadows_notsupport || !CVAR_TO_BOOL( gl_shadows );
+			const char *def = curshader.defines ? curshader.defines : "";
+
+			if(( noShadowPath && ( Q_strstr( def, "HAS_SHADOWS" ) || Q_strstr( def, "SUN_SHADOW" ))) ||
+				( !GL_Support( R_TEXTURE_ARRAY_EXT ) && Q_strstr( def, "TERRAIN_NUM_LAYERS" )))
+			{
+				compiled_shader_counter++;
+				shaders_processed_total++;
+				curshader = shaders[shaders_processed_total];
+				continue;
+			}
+		}
 
 		shader = GL_InitGPUShader( curshader.glname, curshader.glname, curshader.glname, curshader.defines );
 

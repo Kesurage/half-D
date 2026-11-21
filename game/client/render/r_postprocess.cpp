@@ -362,8 +362,24 @@ void RenderFSQ( int wide, int tall )
 	pglEnd();
 }
 
+// half-D: every fullscreen pglCopyTexSubImage2D is a CPU readback through
+// gl4es (0.5-13 s per frame on Mali — GPU watchdog resets). The mobile
+// quality preset turns these effects off, but the video options presets
+// re-enable them via archived cvars, which is what crashed the device the
+// moment a graphics option was selected. This hard gate ignores the cvars
+// on the GL 2.x path; set gl_mobile_quality 0 to opt back in.
+static bool R_AllowScreenCaptureFX( void )
+{
+	if( glConfig.version >= 3.0f )
+		return true;
+	return !CVAR_TO_BOOL( gl_mobile_quality );
+}
+
 void RenderSunShafts( void )
 {
+	if( !R_AllowScreenCaptureFX() )
+		return;
+
 	if( !CVAR_TO_BOOL( gl_sunshafts ) || !tr.screen_depth || !tr.screen_color || !target_rgb[0] )
 		return;
 
@@ -558,6 +574,9 @@ void RenderSunShafts( void )
 
 void MotionBlur(void)
 {
+	if( !R_AllowScreenCaptureFX() )
+		return;
+
 	static float drunk_amount = 0.0f;
 	float Accum;
 
@@ -738,6 +757,9 @@ void GaussBlur( void )
 
 void RenderGaussBlur( float blur1, float blur2 )
 {
+	if( !R_AllowScreenCaptureFX() )
+		return;
+
 	if( (blur1 <= 0.0f) && (blur2 <= 0.0f) )
 		return;
 
@@ -766,6 +788,9 @@ void RenderGaussBlur( float blur1, float blur2 )
 
 void HorizontalBlur( void )
 {
+	if( !R_AllowScreenCaptureFX() )
+		return;
+
 	static float Accum = 0.0f;
 
 	if( Accum == 0.0f ) // make sure it's faded out
@@ -855,6 +880,9 @@ void HorizontalBlur( void )
 
 void ScreenWater(void)
 {
+	if( !R_AllowScreenCaptureFX() )
+		return;
+
 	float Speed = gEngfuncs.GetLocalPlayer()->curstate.vuser1.x;
 
 	// special condition...
@@ -890,6 +918,9 @@ void ScreenWater(void)
 
 void Glitch( void )
 {
+	if( !R_AllowScreenCaptureFX() )
+		return;
+
 	if( gHUD.GlitchAmount > 0.0f && tr.time > gHUD.GlitchHoldTime )
 		gHUD.GlitchAmount = CL_UTIL_Approach( 0.0f, gHUD.GlitchAmount, g_fFrametime );
 	
@@ -917,6 +948,9 @@ void Glitch( void )
 
 void Monochrome( void )
 {
+	if( !R_AllowScreenCaptureFX() )
+		return;
+
 	const float MonochromeState = gEngfuncs.GetLocalPlayer()->curstate.vuser1.z;
 
 	float CurrentMonochrome = 0.0f;
@@ -965,6 +999,9 @@ void Monochrome( void )
 
 void SSAO( void )
 {
+	if( !R_AllowScreenCaptureFX() )
+		return;
+
 	if( (!CVAR_TO_BOOL( gl_ssao ) && !CVAR_TO_BOOL( gl_hbao )) || tr.lowmemory )
 		return;
 
@@ -1079,6 +1116,9 @@ void SSAO( void )
 
 void Bloom( void )
 {
+	if( !R_AllowScreenCaptureFX() )
+		return;
+
 	if( !CVAR_TO_BOOL( r_bloom ) )
 		return;
 
@@ -1278,6 +1318,9 @@ void Enhance( void )
 
 void FSR( void )
 {
+	if( !R_AllowScreenCaptureFX() )
+		return;
+
 	if( gl_fsr->value <= 0.0f )
 		return;
 
@@ -1404,6 +1447,9 @@ void SMAA( void )
 
 void DownScale( void )
 {
+	if( !R_AllowScreenCaptureFX() )
+		return;
+
 	if( gl_renderscale->value >= 1.0f )
 		return;
 

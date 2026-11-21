@@ -4196,8 +4196,14 @@ static qboolean Mod_LoadBmodelLumps( model_t *mod, byte *mod_base, size_t buffer
 	Q_strncpy( loadstat.name, mod->name, sizeof( loadstat.name ));
 	wadvalue[0] = '\0';
 
+	// half-D: load-stage timing — pre-heap phases (the 25 s device world
+	// load was in none of the heap stages timed below)
+	double swapT0 = Platform_DoubleTime();
+
 	// byte-swap BSP header and lump directory from little-endian
 	Mod_SwapBSPLumps( mod_base, bufferlen );
+	if( isworld && Platform_DoubleTime() - swapT0 > 0.3 )
+		Con_Printf( "load: swap bsp lumps in %.2f s\n", Platform_DoubleTime() - swapT0 );
 
 	switch( header->version )
 	{
@@ -4235,7 +4241,12 @@ static qboolean Mod_LoadBmodelLumps( model_t *mod, byte *mod_base, size_t buffer
 	bmod->isworld = isworld;
 	bmod->isbsp30ext = FBitSet( flags, LUMP_BSP30EXT );
 	bmod->hulls32bit = bmod->version == QBSP2_VERSION || ( !isworld && world.version == QBSP2_VERSION );
+	double bspxT0 = Platform_DoubleTime();
 	fs_offset_t bspx_header_offset = Mod_FindBSPX( mod_base, bufferlen );
+	if( isworld && Platform_DoubleTime() - bspxT0 > 0.3 )
+		Con_Printf( "load: find bspx in %.2f s\n", Platform_DoubleTime() - bspxT0 );
+
+	double rawT0 = Platform_DoubleTime();
 
 	// loading base lumps
 	for( int i = 0; i < ARRAYSIZE( srclumps ); i++, stat_index++ )
@@ -4251,6 +4262,9 @@ static qboolean Mod_LoadBmodelLumps( model_t *mod, byte *mod_base, size_t buffer
 		for( int i = 0; i < ARRAYSIZE( bspxlumps ); i++, stat_index++ )
 			Mod_LoadLump( mod_base, &bspxlumps[i], &worldstats[stat_index], flags, LOADLUMP_BSPX, mod_base + bspx_header_offset, bmod );
 	}
+
+	if( isworld && Platform_DoubleTime() - rawT0 > 0.3 )
+		Con_Printf( "load: raw lump loading in %.2f s\n", Platform_DoubleTime() - rawT0 );
 
 	if( !bmod->isworld ) // a1ba: why world excluded here?
 	{
