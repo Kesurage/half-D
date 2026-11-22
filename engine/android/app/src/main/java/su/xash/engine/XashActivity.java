@@ -270,12 +270,11 @@ public class XashActivity extends SDLActivity {
 		}
 
 		String argv = getIntent().getStringExtra("argv");
-		// half-D v0.5.0: no hardcoded renderer anymore. The engine's
-		// ref_common.c now prefers the native GLES 3.0 path (ref_gles3compat)
-		// with gl4es as automatic fallback, so the command line must not pin
-		// anything — a pinned -ref would defeat the fallback chain. Users can
-		// still force a renderer by passing -ref gl4es / -ref gles3compat in
-		// the launcher arguments.
+		// half-D v0.6.0: no hardcoded renderer on the command line. The
+		// engine's ref_common.c defaults to gl4es (the reference
+		// configuration — correct visuals, working menus) with gles3compat
+		// as automatic fallback. Users can still force a renderer by
+		// passing -ref gl4es / -ref gles3compat in the launcher arguments.
 		if (argv == null) argv = "-console -log -dev 2";
 
 		return argv.split(" ");

@@ -689,3 +689,42 @@ Fixes:
   permutations INCLUDED, plus a static check that no #extension ever follows
   a non-preprocessor token in the emitted source
 - re-validated with glslangValidator as GLSL ES 300: 1141/1141 ALL CLEAN
+
+## 2026-11-22 — v0.6.0: back to gl4es — the native GLES3 bet didn't pay
+
+The v0.5.4 field report settled it: the custom renderer now RUNS on the
+native path but renders wrong (black ground, error models, mesh and lighting
+garbage, artifacts), runs 0-4 fps, and opening options/menus crashes the
+game AND the device. That is a regression against v0.4.4 (gl4es): correct
+visuals, working menus, 5-15 fps.
+
+Forensics against the reference (yalnie/Diffusion-Android, cloned fresh):
+its client renderer carries ZERO GLES-specific code — it expects a desktop
+GL 2.x context and runs through gl4es, which is exactly xash3d-fwgs's
+standard Android story. Our 11-file delta vs the reference is my entire
+v0.5.x stack. The experiment — running Diffusion's fixed-function GL2
+renderer natively on GLES3 via a text-level shader transform + call shim —
+cannot reproduce the renderer faithfully; every visual subsystem would be
+its own device-debug round trip.
+
+Changes:
+- ref_common.c: Android renderer order swapped back — gl4es first,
+  gles3compat the automatic fallback (-ref still overrides). v0.5.0's
+  gles3compat-first preference was the only thing routing the device to
+  the native path; the build still ships both refs.
+- XashActivity: comment updated to match; argv stays unpinned.
+- Verified inert under gl4es: every client v0.5.x capability gate keys on
+  glConfig.es_context (gl4es presents desktop GL 2.1 → false); the esStubs
+  only fire for names gl4es fails to resolve (it resolves the full GL2
+  surface, that is its job); gl2_shim additions are only reached through
+  R_GetProcAddress's GLES3COMPAT branch; the gl_studio overflow guards are
+  ref-agnostic safety fixes. The mobile quality preset v6 applies on gl4es
+  (version 2.1 < 3.0): shadows/sunshafts/exposure/lensflare/refraction/
+  portals/DoF/FSR off, renderscale 1.0, menu blur off, grass fades.
+
+What this does NOT fix: the gl4es path was CPU-bound at 5-15 fps in the
+v0.4.4 field log (80-160 ms scene times — per-call translation overhead).
+That is the next round, and it must be data-driven: the perf heartbeat and
+the low-fps watchdog are in the client and run under gl4es, so the next
+engine.log tells us which stage eats the frame (scene vs postfx vs uploads,
+dips/binds, polys per draw). No more blind patching.

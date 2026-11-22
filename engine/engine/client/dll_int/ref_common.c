@@ -803,19 +803,20 @@ qboolean R_Init( void )
 		success = R_LoadRenderer( requested_cmdline, false );
 
 #if XASH_ANDROID
-	// half-D v0.5.0: prefer the NATIVE GLES 3.0 renderer (ref_gles3compat)
-	// on Android — Diffusion's client renderer compiles its shaders as
-	// GLSL ES 300 and the gl2_shim answers the fixed-function surface, so
-	// nothing goes through gl4es's per-call translation layer (the 80-160 ms
-	// scene times in the 02:49 field log). gl4es stays the fallback: if the
-	// gles3compat library fails to load or init, the flow below continues
-	// and reaches it. -ref on the command line still overrides everything
-	// (the launcher may pass -ref gl4es; keep honoring it).
+	// half-D v0.6.0: gl4es is the DEFAULT renderer again. The v0.5.0 bet on
+	// the native GLES3 path (ref_gles3compat + the client's GLSL ES 300
+	// transform) rendered incorrectly on device (black terrain, broken
+	// models, artifacts, 0-4 fps, menu watchdog resets) — the fixed-function
+	// translation cannot reproduce Diffusion's renderer faithfully. gl4es is
+	// the reference configuration (yalnie/Diffusion-Android): correct
+	// visuals, working menus, 5-15 fps with the mobile quality preset.
+	// gles3compat stays the automatic fallback and can be forced with
+	// -ref gles3compat in the launcher arguments.
 	if( !success )
 	{
-		success = R_LoadRenderer( "gles3compat", false );
+		success = R_LoadRenderer( "gl4es", false );
 		if( !success )
-			success = R_LoadRenderer( "gl4es", false );
+			success = R_LoadRenderer( "gles3compat", false );
 	}
 #endif
 
