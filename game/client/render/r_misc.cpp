@@ -2080,11 +2080,11 @@ void R_NewMap( void )
 	// at first draw — a 31 s frozen frame at map start and 9 s hitches
 	// mid-game on the Mali through gl4es (the v0.7.3 "1 fps" report).
 	// 45 s budget, once per session; leftovers stay lazy as before.
-	// half-D v0.8.1: unlimited rate limiter during the load — the deferred
-	// queue drains completely and load-time shader lookups compile inline,
-	// behind the plaque where a stall is invisible.
-	R_ShadersFrameStart( true );
-	R_PrecompileShadersSync( 45.0f );
+	// half-D v0.8.3: the systematic precompile runs as a per-frame load
+	// phase now (R_ShaderLoadPhaseStep from HUD_RenderFrame) — the same
+	// ~45 s of gl4es compiles once per session, but 1.2 s per frame with
+	// a progress bar instead of one frozen 45 s frame (ANR-safe).
+	R_ShaderLoadPhaseBegin();
 
 	// reset some world variables
 	for( i = 1; i < MAX_MODELS; i++ )

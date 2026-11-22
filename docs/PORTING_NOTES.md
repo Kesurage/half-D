@@ -625,3 +625,37 @@ Missing-content note (not port bugs): truck.mdl, sedan passat, HL1 pain
 sounds, glass_gib/raindrop particle textures and the skybox
 (alpha_sky/solid_sky) are absent from the user's game data — they fail
 by name in the log now.
+
+## 25. v0.8.3: the shader-starvation regression, closed properly
+
+The v0.8.1 device log ("precompiled 100 shaders behind the loading screen
+in 45.2 s ... the rest compile on first use") was the last correct-by-
+design build; everything after traded correctness against a frozen frame:
+
+- v0.7.4: sync compile at R_NewMap = 45 s in ONE frame behind the plaque.
+  Correct rendering, but a single frozen frame the Android watchdog can
+  read as a hang (chapter-open "crashes").
+- v0.8.1: rate-limited lazy (1-2 compiles/s). No freeze, but every surface
+  whose permutation had not compiled yet is NULL-skipped: black textures,
+  invisible studio models, 460 ms hitches every time the limiter ran.
+- v0.8.2: capped the map-load drains at 2 s -> ~90 permutations pushed
+  back to the in-game limiter = minutes of shader-starved play. The
+  "regressed horribly, still 5 fps, black screen" report.
+
+v0.8.3 makes the trade unnecessary — the systematic precompile now runs
+as a PER-FRAME load phase (R_ShaderLoadPhaseBegin/Step from
+HUD_RenderFrame, 1.2 s wall per frame): the "Loading shaders" bar shows
+progress, no frame exceeds ~2 s (ANR-safe), total time is the same ~45 s
+once per session, and rendering is complete when the bar settles. After
+the phase, first-use permutations compile inline — the reference-port
+(yalnie) behavior: always correct, one ~460 ms hitch each.
+r_shader_lazy_hz stays as an opt-in rate limiter (default 0 now).
+
+Preset v8: r_grass 0 on mobile. The v0.8.1 log measured grass at 10x the
+world poly count (5128 vs 494) — the dominant scene cost (39 ms at
+23 fps). Fades alone could not fix that; the watchdog had been advising
+r_grass 0 since v0.8.0.
+
+The 42 log errors are still missing mod content (HL1 pain/idle sounds,
+lambda.lmp, glass particles) — by name in the log, absent from the
+itch.io data.

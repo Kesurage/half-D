@@ -903,8 +903,10 @@ word GL_UberShaderForSolidStudio( struct mstudiomat_s *mat, bool vertex_lighting
 word GL_UberShaderForDlightStudio( const plight_t *dl, struct mstudiomat_s *mat, bool bone_weighting, int numbones = 0 );
 word GL_UberShaderForStudioDecal( struct mstudiomat_s *mat );
 bool GL_PrecompileUberShaders( int &processed, int &total );
-bool R_PrecompileShadersSync( float budgetSeconds ); // half-D v0.7.4: budgeted compile behind the loading plaque
-void R_ShadersFrameStart( bool bUnlimited );         // half-D v0.8.1: refill compile rate limiter + deferred queue drain (unlimited at map load)
+void R_ShaderLoadPhaseBegin( void );                     // half-D v0.8.3: start the per-frame systematic precompile at map load
+bool R_ShaderLoadPhaseActive( void );                    // half-D v0.8.3: load phase in progress?
+void R_ShaderLoadPhaseStep( float frameBudgetSeconds );   // half-D v0.8.3: compile list entries up to a per-frame wall budget
+void R_ShadersFrameStart( bool bUnlimited, float flDrainBudgetSeconds = -1.0f ); // half-D v0.8.3: rate limiter + queue drain (per-frame budget in the load phase)
 int R_ShadersPendingCount( void );                   // half-D v0.8.0: diagnostics for the perf heartbeat
 int R_ShadersDeferredTotal( void );
 

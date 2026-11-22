@@ -456,7 +456,11 @@ void V_Init( void )
 	// the whole deferred queue also flushes instantly at the next map load.
 	// 0 = compile everything on first use (pre-v0.8.0 behavior, brings the
 	// 35 s spikes back); higher = faster pop-in, more hitches.
-	r_shader_lazy_hz = CVAR_REGISTER( "r_shader_lazy_hz", "1", FCVAR_ARCHIVE );
+	// half-D v0.8.3: default 0 = reference-port behavior — first-use
+	// permutations compile inline (correct rendering, one hitch each).
+	// The v0.8.1-0.8.2 default (rate-limited NULL-skip) starved surfaces
+	// and models for minutes at 1-2/s: the "regressed horribly" report.
+	r_shader_lazy_hz = CVAR_REGISTER( "r_shader_lazy_hz", "0", FCVAR_ARCHIVE );
 	gl_exposure = CVAR_REGISTER( "gl_exposure", "1", FCVAR_ARCHIVE );
 	gl_emboss = CVAR_REGISTER( "gl_emboss", "1", FCVAR_ARCHIVE );
 	gl_specular = CVAR_REGISTER( "gl_specular", "1", FCVAR_ARCHIVE );
@@ -508,7 +512,7 @@ void V_Init( void )
 
 void V_VidInit( void )
 {
-	// half-D: mobile quality preset v7 (on yalnie's renderer base). The GL 2.x
+	// half-D: mobile quality preset v8 (on yalnie's renderer base). The GL 2.x
 	// path (gl4es/ES on phones) pays heavily for per-frame postfx and shadow
 	// passes — default to a tuned preset there so the game is playable. Set
 	// gl_mobile_quality 0 to keep full effects.
@@ -527,6 +531,11 @@ void V_VidInit( void )
 		// still covers the near field where it reads visually.
 		r_grass_fade_start->value = 256.0f;
 		r_grass_fade_dist->value = 512.0f;
+		// half-D v0.8.3: grass OFF on mobile. The v0.8.1 device log measured
+		// grass at 10x the world poly count (5128 vs 494) — the dominant
+		// scene cost at 23 fps (scene 39 ms). Fades alone were not enough.
+		// r_grass 1 restores it once the frame budget allows.
+		r_grass->value = 0.0f;
 		gl_sunshafts->value = 0.0f;
 		gl_exposure->value = 0.0f;
 		gl_lensflare->value = 0.0f;
@@ -549,7 +558,7 @@ void V_VidInit( void )
 		// half-D: renderscale 1.0 — at scale < 1 DownScale() does the same
 		// per-frame copy; full resolution with no copy beats a copied frame.
 		gl_renderscale->value = 1.0f;
-		ConPrintf( "renderer: mobile quality preset v7 applied (gl_mobile_quality 1)\n" );
+		ConPrintf( "renderer: mobile quality preset v8 applied (gl_mobile_quality 1)\n" );
 	}
 
 	PrevViewAngles = g_vecZero;

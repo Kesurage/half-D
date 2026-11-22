@@ -1032,3 +1032,17 @@ IL_DDS_HARDWARE is set and compressed loading continues as before).
 Next: the native ES3 renderer cut-in behind a cvar, A/B-verified against
 this build's gl4es path — that is where the compile cost and the epoly
 throughput actually get fixed, per the rewrite plan.
+
+## 2026-11-22 — v0.8.3: the shader-starvation regression closed
+
+- Field log (v0.8.1 on device): 100 precompiled in a 45 s frozen plaque
+  frame, 54 "unusable", ~91 permutations deferred to a 1-2/s rate limiter
+  -> black textures, epoly 0 (models invisible), 460 ms hitches. The
+  0.8.x correctness-for-smoothness trade was the whole regression.
+- v0.8.3: per-frame load-phase compiler (1.2 s/frame, progress bar,
+  ANR-safe, once per session); r_shader_lazy_hz default 0 (reference
+  first-use compile); preset v8 r_grass 0 (grass was 10x world polys);
+  GL_PrecompileUberShaders no-binary branch guarded so the phase owns
+  the bar and done-flags.
+- Repos checked: Kesurage/Diffusion-Android = fork of yalnie b63a4cf —
+  the texture-fix base already in our lineage via the v0.3.0 rebase.

@@ -2382,11 +2382,19 @@ int HUD_RenderFrame( const ref_viewpass_t *rvp )
 	auto diagT0 = std::chrono::steady_clock::now();
 
 	// half-D v0.8.1: refill the shader compile rate limiter and drain the
-	// deferred queue (r_shader_lazy_hz compiles per second, default 2).
-	// Out-of-token lazy misses return NULL and the surface pops in a moment
-	// later — no multi-second frozen frames, no wrong-permutation fallback
-	// (the two v0.8.0 regressions).
-	R_ShadersFrameStart( false );
+	// half-D v0.8.3: during the post-load shader phase, step the systematic
+	// precompile with a per-frame wall-clock budget — full compilation with
+	// no multi-second frozen frame, the "Loading shaders" bar shows the
+	// progress. After the phase the rate limiter only paces rare
+	// stragglers (r_shader_lazy_hz; default 0 = reference first-use
+	// compile: always correct, one ~460 ms hitch each).
+	if( R_ShaderLoadPhaseActive() )
+	{
+		R_ShadersFrameStart( true, 0.8f );  // drain the deferred queue too
+		R_ShaderLoadPhaseStep( 1.2f );
+	}
+	else
+		R_ShadersFrameStart( false );
 
 	GL_LoadAndRebuildCubemaps( RI->params );  // diffusioncubemaps
 
