@@ -505,7 +505,20 @@ void V_Init( void )
 	// RENAMED from gl_custom_renderer: the v0.7.x builds archived
 	// "gl_custom_renderer 0" in the device config, and that stale line would
 	// override this default on every launch. The rename orphans it.
-	gl_diffusion_renderer = CVAR_REGISTER( "gl_diffusion_renderer", "1", FCVAR_ARCHIVE ); // half-D
+	//
+	// half-D v0.8.4: default flipped back to 0 (engine renderer). The v0.7.3
+	// flip to 1 chased the full shader look, but on the only known target
+	// (Infinix Hot 50 4G / Mali-G57 MC2 / gl4es 1.1.7) the custom renderer
+	// regressed past v0.6.1: the 2026-11-22 v0.8.3 field report is purple-
+	// tinted lighting, glitched characters/props and 5-8 fps — gl4es's
+	// GLSL->GLES translation of the Diffusion shader set produces wrong
+	// output on this driver, and ~54 of 100 permutations are skipped as
+	// unusable (no texture_array / shadow_samplers / gpu_shader4). The
+	// engine renderer is the v0.7.0-proven path: no client shader compiles,
+	// upstream-tested batching, correct output at the device's full speed.
+	// The custom renderer stays opt-in via `gl_diffusion_renderer 1` for
+	// GPUs that actually expose the caps it needs.
+	gl_diffusion_renderer = CVAR_REGISTER( "gl_diffusion_renderer", "0", FCVAR_ARCHIVE ); // half-D
 	gl_diag = CVAR_REGISTER( "gl_diag", "1", FCVAR_ARCHIVE ); // half-D
 	cl_background = CVAR_GET_POINTER( "cl_background" );
 }
