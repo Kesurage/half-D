@@ -872,3 +872,37 @@ load-time — the frame path is untouched:
 Performance guard: every change is texture generation, cleanup and cvar
 registration — all load-time. The 90 fps frame path (engine renderer, no
 client shaders) is byte-identical.
+
+## 2026-11-22 — v0.7.3: performance mode is not the product — the full renderer is back
+
+The v0.7.2 field report closed the loop on the v0.7.0 trade: 90 fps, but
+"shader's loading" stuck on screen forever, cars oversized with missing
+components, no lighting, no shaders, no effects. Two findings:
+
+1. THE STUCK BAR. CHud::DrawShaderCompilation() runs unconditionally from
+   CHud::Redraw(); bShadersCompiled is only ever set by
+   GL_PrecompileUberShaders, which lives at the END of the custom
+   renderer's HUD_RenderFrame — a path performance mode returns 0 before
+   ever reaching. So the "Loading shaders 0/0" bar drew forever over a
+   frame that was never compiling anything. Fix: skip the bar when
+   !g_fRenderInitialized (nothing is compiling in engine-renderer mode).
+
+2. THE BROKEN WORLD IS THE ENGINE RENDERER. Diffusion's props, lighting
+   and effects are PrimeXT client-renderer features — the vanilla engine
+   ref has no material pipeline, so cars render oversized/incomplete and
+   every shader/lighting/effect feature is simply absent. This is not a
+   bug to patch engine-side; it is what "don't run the game's renderer"
+   means. The v0.6.1 field data already proved the custom renderer draws
+   this content CORRECTLY (menus, cars, terrain, dusk sky) at 11-18 fps
+   in the heaviest scenes, with the compile storm — the actual 1fps
+   killer — since fixed by lazy compile.
+
+Decision: gl_diffusion_renderer 1 (renamed from gl_custom_renderer so the
+stale archived "gl_custom_renderer 0" in the device config cannot override
+the new default) is the shipped default. First map load will stall once
+while shaders compile lazily (~100-500 ms each, no binary cache on gl4es);
+after that the full look runs on the mobile quality preset v6. The 90 fps
+engine-renderer mode remains one cvar away (gl_diffusion_renderer 0) for
+low-battery/speed runs. The next optimization round targets the 219k
+epoly scenes (the 11-18 fps floor) — distance cull + decal budget are the
+candidates, data first (gl_diag heartbeat is on by default).

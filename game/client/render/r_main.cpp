@@ -2304,7 +2304,7 @@ static void R_DiagFrame( void )
 					// "studioLOD" bodypart — the field log showed the heavy
 					// scenes (cars, 219k-258k epoly) have none, so cl_lod
 					// cannot help them. Point at the real fix instead.
-					gEngfuncs.Con_Printf( "perf: [watchdog] verdict: ^1SCENE-BOUND, studio models^7 (%d epoly) — advice: the engine renderer batches these (gl_custom_renderer 0, the default); cl_lod_enable only helps models with studioLOD data\n", (int)r_stats.c_studio_polys );
+					gEngfuncs.Con_Printf( "perf: [watchdog] verdict: ^1SCENE-BOUND, studio models^7 (%d epoly) — advice: the engine renderer batches these (gl_diffusion_renderer 0); cl_lod_enable only helps models with studioLOD data\n", (int)r_stats.c_studio_polys );
 			}
 			else if( diagMsPostfx > diagFrameMs * 0.25f )
 				gEngfuncs.Con_Printf( "perf: [watchdog] verdict: ^1POSTFX-BOUND^7 (%.1f ms) — advice: r_blur_strength 0, gl_mobile_quality 0\n", diagMsPostfx );

@@ -183,6 +183,14 @@ void CHud::Think( void )
 
 void CHud::DrawShaderCompilation( void )
 {
+	// half-D v0.7.3: performance mode (engine renderer) never runs the
+	// shader compile pass — GL_PrecompileUberShaders is only called at the
+	// end of the custom renderer's frame path — so bShadersCompiled stays
+	// false and this bar drew "Loading shaders 0/0" forever over the game.
+	// Nothing is compiling in that mode; don't draw the bar.
+	if( !g_fRenderInitialized )
+		return;
+
 	if( bShadersCompiled )
 		return;
 

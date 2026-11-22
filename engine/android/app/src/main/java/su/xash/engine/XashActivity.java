@@ -272,10 +272,11 @@ public class XashActivity extends SDLActivity {
 		String argv = getIntent().getStringExtra("argv");
 		// half-D v0.7.1: no hardcoded renderer on the command line. The
 		// engine's ref_common.c defaults to gl4es (the proven texture path
-		// for this game's DDS data) with the client's custom shader
-		// renderer off by default (gl_custom_renderer 0 = performance
-		// mode; the engine renderer draws). -ref gles3compat stays
-		// selectable for experiments.
+		// for this game's DDS data). half-D v0.7.3: the Diffusion custom
+		// renderer is the default again (gl_diffusion_renderer 1) — the
+		// v0.7.0-0.7.2 engine-renderer mode drew the game without its
+		// materials/lighting/effects. -ref gles3compat stays selectable
+		// for experiments.
 		if (argv == null) argv = "-console -log -dev 2";
 
 		return argv.split(" ");

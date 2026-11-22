@@ -1342,7 +1342,7 @@ bool R_Init( void )
 	// native renderer draws the game instead: no client shader compiles at
 	// all, upstream-tested batching. All client render hooks already no-op
 	// on g_fRenderInitialized == false (the v0.5.2 veto path).
-	// gl_custom_renderer 1 (+ -ref gl4es) restores the full shader look.
+	// gl_diffusion_renderer 1 (the v0.7.3 default) is the full shader look.
 	//
 	// half-D v0.7.1: GL_InitExtensions MUST run first even when gating.
 	// v0.7.0 returned before it, leaving every client pgl pointer NULL —
@@ -1351,13 +1351,13 @@ bool R_Init( void )
 	// table is the v0.5.2/v0.6.x-proven state: those calls then hit real
 	// (harmless, no-op) GL entry points. HUD_RenderFrame returns 0 below
 	// via g_fRenderInitialized == false, so the engine ref draws the frame.
-	if( g_fRenderInitialized && gl_custom_renderer && !CVAR_TO_BOOL( gl_custom_renderer ))
+	if( g_fRenderInitialized && gl_diffusion_renderer && !CVAR_TO_BOOL( gl_diffusion_renderer ))
 	{
 		g_fRenderInitialized = false;
 		CVAR_SET_FLOAT( "gl_renderer", 0 );
 		CVAR_SET_FLOAT( "ui_shadersdone", 1 ); // mainui hides every menu until this is 1
 		ConPrintf( "^3half-D performance mode:^7 the game's custom shader renderer is disabled; the engine renderer draws the game.\n" );
-		ConPrintf( "^3half-D:^7 full shader look: set gl_custom_renderer 1 (renderer -ref gl4es is the default).\n" );
+		ConPrintf( "^3half-D:^7 full shader look: set gl_diffusion_renderer 1.\n" );
 		return false;
 	}
 

@@ -189,7 +189,7 @@ cvar_t *r_decals_ext;
 cvar_t *gl_fsr;
 cvar_t *fps_max;
 cvar_t *gl_mobile_quality;  // half-D: mobile quality preset
-cvar_t *gl_custom_renderer; // half-D: performance mode master switch (0 = engine renderer)
+cvar_t *gl_diffusion_renderer; // half-D: renderer switch (1 = Diffusion custom renderer, 0 = engine renderer)
 cvar_t *gl_diag;            // half-D: perf heartbeat
 cvar_t *gl_texture_nearest;
 
@@ -475,13 +475,23 @@ void V_Init( void )
 	r_menu_blur = CVAR_REGISTER( "r_menu_blur", "1", FCVAR_ARCHIVE );
 	gl_mobile_quality = CVAR_REGISTER( "gl_mobile_quality", "1", FCVAR_ARCHIVE ); // half-D
 	// half-D v0.7.0: performance mode master switch. Default OFF — on the
-	// target device (Infinix Hot 50 4G, Helio G99 / Mali-G57) the custom
-	// GL2 renderer through gl4es measured at best 11-18 fps in car scenes
-	// (219k-258k epoly, no studioLOD data in the models) with shader-compile
-	// storms of up to 31 s at map load. The engine's native GLES renderer
-	// batches the same geometry and is the upstream-tested mobile path.
-	// gl_custom_renderer 1 + -ref gl4es restores the full shader look.
-	gl_custom_renderer = CVAR_REGISTER( "gl_custom_renderer", "0", FCVAR_ARCHIVE ); // half-D
+	// half-D v0.7.3: the default is the FULL renderer again. The v0.7.0
+	// performance mode (engine renderer, 90 fps) proved on device that the
+	// 90 fps came from NOT rendering Diffusion's content: the vanilla
+	// engine ref has no PrimeXT material/lighting pipeline, so shader
+	// materials, dynamic lighting, effects and the PrimeXT-scaled props
+	// (cars oversized / missing components) all disappeared — the user's
+	// v0.7.2 field report. The v0.6.1 field data is the counter-evidence for
+	// the custom renderer: it drew this game CORRECTLY (menus, cars, terrain,
+	// dusk sky) at 11-18 fps in the heaviest scenes, and the 1 fps killer was
+	// the compile storm, since fixed (lazy compile, mobile preset v6, LOD
+	// force). Expect one long first map load while shaders compile lazily
+	// (~100-500 ms each through gl4es, no binary cache on this driver).
+	// gl_diffusion_renderer 0 restores the 90 fps engine-renderer mode.
+	// RENAMED from gl_custom_renderer: the v0.7.x builds archived
+	// "gl_custom_renderer 0" in the device config, and that stale line would
+	// override this default on every launch. The rename orphans it.
+	gl_diffusion_renderer = CVAR_REGISTER( "gl_diffusion_renderer", "1", FCVAR_ARCHIVE ); // half-D
 	gl_diag = CVAR_REGISTER( "gl_diag", "1", FCVAR_ARCHIVE ); // half-D
 	cl_background = CVAR_GET_POINTER( "cl_background" );
 }
