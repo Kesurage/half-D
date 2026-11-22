@@ -654,3 +654,38 @@ dips/binds/polys-per-dip, and a verdict naming the dominant cost (scene
 geometry / grass / studio polys / postfx / texture uploads / cubemaps /
 draw-call bound / shader-switch bound / not-GPU-bound) plus the concrete
 cvars to turn down. All advice cvar names verified to exist in the codebase.
+
+## 2026-11-22 — v0.5.4: the shader prelude emitted a desktop-only #extension on ES
+
+The 11:17 log is the deepest failure yet — and a clean one: the client
+renderer INITIALIZED (first time on the native path), started compiling the
+real game shaders, and stopped with a host error instead of a segfault:
+"0:33: P0001: Extension directive must occur before any non-preprocessor
+tokens" on generic_vp (and the same at 0:29 on genshafts_fp), then the
+required-shader assert on GenSunShafts.
+
+Line arithmetic pinned it: the only #extension in the emitted source is the
+prelude's own "#extension GL_EXT_gpu_shader4 : require" — landing at exactly
+line 33 (vp) / 29 (fp) after the uniform/in/out injections. Two faults in
+one directive: GL_EXT_gpu_shader4 is desktop-only (ES3 has the integer/
+bitwise features in core), and it followed non-preprocessor tokens — which
+Mali enforces (P0001) and desktop drivers silently tolerate. The stock game
+shaders carry no #extension lines at all (grep-verified).
+
+Why it slipped past the v0.5.0 offline validation: the harness modeled the
+gl4es-era device state (gpu_shader4 OFF, texture_array OFF, shadows filtered
+out) — but the v0.5.2+ capability fixes made the client predict all three ON
+on native ES3, so the device compiled shader permutations the harness had
+never validated, with a prelude line it never modeled.
+
+Fixes:
+- the gpu_shader4 DIRECTIVE is not emitted on ES contexts (the feature
+  defines stay — the shader bodies guard on them and ES3 supports the ops)
+- body #extension lines (mod shaders) are commented out on ES — they can
+  never be legal after the prelude's declarations
+- validate_es300.py now models the REAL native device profile: every
+  permutation (1111 shaderlist entries + fixed pairs = 1141 vp/fp compile+
+  link), gpu_shader4 and texture_array defines ON, shadow and terrain-layer
+  permutations INCLUDED, plus a static check that no #extension ever follows
+  a non-preprocessor token in the emitted source
+- re-validated with glslangValidator as GLSL ES 300: 1141/1141 ALL CLEAN

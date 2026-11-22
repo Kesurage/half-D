@@ -362,6 +362,18 @@ static void GL_ParseFile( const char *filename, CVirtualFS *file, CVirtualFS *ou
 		}
 		else
 		{
+			// half-D: GLSL requires #extension before any non-preprocessor
+			// token, and the ES prelude already emits declarations — a body
+			// directive (e.g. from a mod shader) can never be legal there.
+			// Comment it out instead of failing the compile (the stock
+			// game shaders carry none; grep-verified).
+			if( glConfig.es_context && !Q_strcmp( token, "#extension" ))
+			{
+				out->Printf( "// [half-D] ES: %s", line );
+				fileline++;
+				continue;
+			}
+
 			// half-D: rewrite legacy GLSL to ES 300 on native GLES contexts
 			if( glConfig.es_context )
 				HD_TransformLineES( line, sizeof( line ), shaderType );
@@ -445,7 +457,15 @@ static bool GL_ProcessShader( const char *filename, CVirtualFS *out, bool compat
 	}
 	if( GL_Support( R_EXT_GPU_SHADER4 ))
 	{
-		out->Printf( "#extension GL_EXT_gpu_shader4 : require\n" ); // support bitwise ops
+		// half-D: GL_EXT_gpu_shader4 is a desktop extension — ES3 has the
+		// integer/bitwise features in core. Emitting the directive on a
+		// native GLES context is a double fault: the extension doesn't
+		// exist there, and the Mali compiler additionally rejects any
+		// #extension that follows a non-preprocessor token (P0001, the
+		// 11:17 device crash — this directive sat after the uniform
+		// injections above). Keep the define, drop the directive on ES.
+		if( !glConfig.es_context )
+			out->Printf( "#extension GL_EXT_gpu_shader4 : require\n" ); // support bitwise ops
 		out->Printf( "#define GLSL_gpu_shader4\n" );
 		if( GL_Support( R_TEXTURE_ARRAY_EXT ))
 			out->Printf( "#define GLSL_ALLOW_TEXTURE_ARRAY\n" );

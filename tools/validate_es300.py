@@ -6,10 +6,12 @@ Replicates the client's GL_ProcessShader/GL_ParseFile preprocessing exactly
 r_shaderlist.h — plus the fixed glsl.* pairs from GL_InitGPUShaders — with
 glslangValidator as GLSL ES 300, and link-checks each vp/fp pair.
 
-Device profile emulated: Android, MAXSTUDIOBONES=76, no gpu_shader4, no
-texture_array, shadow permutations filtered out (mobile preset, no shadow
-samplers on device). Any failure here would be a shader-compile failure or
-visual bug on the phone, so the bar is zero failures.
+Device profile emulated: the NATIVE GLES3 path as of v0.5.4 — MAXSTUDIOBONES=76,
+gpu_shader4 feature defines ON (integer/bitwise are ES3 core; the desktop
+extension DIRECTIVE is not emitted on ES), texture_array ON (client-side
+check passes on ES), shadow permutations INCLUDED (native ES3 has shadow
+samplers — the old gl4es-era filters are gone). Any failure here would be a
+shader-compile failure on the phone, so the bar is zero failures.
 """
 import os, re, subprocess, sys, tempfile
 
@@ -95,6 +97,9 @@ def make_prefix(is_vertex, defines):
         p.append("uniform mat4 u_hdTexMat0;")
         p.append("out vec4 hd_TexCoord0;")
         p.append("vec4 hd_ClipVertexUnused;")
+    # device state after the v0.5.2+ ES capability fixes: both ON
+    p.append("#define GLSL_gpu_shader4")
+    p.append("#define GLSL_ALLOW_TEXTURE_ARRAY")
     if defines:
         p.append(defines.rstrip("\n"))
     p.append("#ifndef MAXSTUDIOBONES\n#define MAXSTUDIOBONES %d\n#endif" % MAXSTUDIOBONES)
@@ -161,14 +166,20 @@ FIXED = [
     ("StudioDepth1","studiodepth","generic","#define STUDIO_BONEWEIGHTING\n#define NO_FOG\n"),
 ]
 
-def device_filter(defines):
-    """the v0.4.1 precompile device filter: skip shadow + terrain-layer
-    permutations that the device can never use"""
-    if ("HAS_SHADOWS" in defines) or ("SUN_SHADOW" in defines):
-        return False
-    if "TERRAIN_NUM_LAYERS" in defines:   # no texture arrays via gl4es
-        return False
-    return True
+def check_extension_order(src):
+    """Mali (and the GLSL ES spec) reject any #extension that follows a
+    non-preprocessor token. The v0.5.3 device crash was exactly this. Assert
+    the emitted source never does it."""
+    seen_token = False
+    for i, line in enumerate(src.splitlines(), 1):
+        t = line.strip()
+        if not t or t.startswith("//"):
+            continue
+        if t.startswith("#extension"):
+            if seen_token:
+                raise AssertionError(f"#extension at line {i} follows non-preprocessor tokens (Mali P0001)")
+        elif not t.startswith("#"):
+            seen_token = True
 
 def run_validator(files, link):
     args = [VALIDATOR]
@@ -180,8 +191,8 @@ def run_validator(files, link):
 
 def main():
     entries = load_shaderlist()
-    kept = [(n, d) for (n, d) in entries if device_filter(d)]
-    print(f"shaderlist entries: {len(entries)} total, {len(kept)} pass the device filter")
+    kept = entries  # native ES3 path: every permutation is live on device
+    print(f"shaderlist entries: {len(entries)} total (ALL validated — native path)")
 
     targets = [("shaderlist", n, n, n, d) for (n, d) in kept]
     targets += [("fixed", g, v, f, d) for (g, v, f, d) in FIXED]
@@ -192,6 +203,8 @@ def main():
         try:
             vsrc = build_shader(vp, True, defines)
             fsrc = build_shader(fp, False, defines)
+            check_extension_order(vsrc)
+            check_extension_order(fsrc)
         except FileNotFoundError as e:
             fails.append((glname, defines, f"missing file {e}"))
             continue
