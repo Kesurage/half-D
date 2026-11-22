@@ -25,6 +25,10 @@ object CrashReports {
 	const val SYSINFO_NAME = "sysinfo.txt"
 	const val INTENT_NAME = "intent.txt"
 	const val ENGINELOG_NAME = "engine.log"
+	// half-D v0.8.2: native stdout + GPU-driver lines survive the app's
+	// death in the logcat ring buffer; dumped into the entry by the
+	// finalize path on the launch after the crash (SessionLog.dumpLogcat).
+	const val LOGCAT_NAME = "logcat.txt"
 
 	class Entry(val dir: File) {
 		val name: String get() = dir.name
@@ -33,8 +37,9 @@ object CrashReports {
 		val sysinfo: File get() = File(dir, SYSINFO_NAME)
 		val intent: File get() = File(dir, INTENT_NAME)
 		val engineLog: File get() = File(dir, ENGINELOG_NAME)
+		val logcat: File get() = File(dir, LOGCAT_NAME)
 
-		fun attachments(): List<File> = listOf(stacktrace, sysinfo, intent, engineLog).filter { it.exists() && it.length() > 0 }
+		fun attachments(): List<File> = listOf(stacktrace, sysinfo, intent, engineLog, logcat).filter { it.exists() && it.length() > 0 }
 
 		fun summary(): String = buildString {
 			if (stacktrace.exists())

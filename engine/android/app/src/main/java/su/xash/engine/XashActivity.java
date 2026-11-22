@@ -18,6 +18,7 @@ import org.libsdl.app.SDLActivity;
 
 import su.xash.engine.util.CrashReports;
 import su.xash.engine.util.Prefs;
+import su.xash.engine.util.SessionLog;
 import su.xash.engine.util.SoftKeyboardPan;
 
 import java.io.File;
@@ -84,6 +85,18 @@ public class XashActivity extends SDLActivity {
 	@Override
 	public void onDestroy() {
 		super.onDestroy();
+
+		// half-D v0.8.2: archive this session's console log plus a logcat
+		// dump before the hard exit. The engine only writes engine.log;
+		// native stdout and GPU-driver messages live in the logcat ring
+		// buffer and were lost on every abnormal exit — the crash pipeline
+		// also dumps it on the launch after a crash, but a clean session
+		// archive keeps every run inspectable and shareable.
+		try {
+			SessionLog.archiveSession(this, new File(Prefs.getGamePath(this), "engine.log"));
+		} catch (Throwable t) {
+			Log.w(TAG, "session log archive failed: " + t);
+		}
 
 		// Now that we don't exit from native code, we need to exit here, resetting
 		// application state (actually global variables that we don't cleanup on exit)
@@ -228,6 +241,9 @@ public class XashActivity extends SDLActivity {
 		}
 		Log.i(TAG, "XASH3D_RODIR = " + rodir);
 
+		// half-D v0.8.2: auto-apply the launcher's tuned device config
+		extractUserconfig(rodir, gamedir);
+
 		// half-D: MainUI loads the menu font from the game's search paths
 		// (gfx/fonts/FiraSans-Regular.ttf) and the itch download doesn't ship
 		// it. Bundle it in the APK assets and extract it into the read-only
@@ -286,5 +302,58 @@ public class XashActivity extends SDLActivity {
 		if (argv == null) argv = "-console -log -dev 2 -ref gl4es";
 
 		return argv.split(" ");
+	}
+
+	// half-D v0.8.2: auto-apply the launcher's tuned device config. The
+	// bundled assets/cfg/userconfig.cfg is extracted into the read-only
+	// game dir (<rodir>/<gamedir>/userconfig.cfg); the engine's search
+	// hierarchy ranks rodir above the writable basedir, so the console
+	// exec of userconfig.cfg applies the launcher's patch level even when
+	// the game folder carries an older copy. Written once per config
+	// version stamp (first line): user edits survive until the next app
+	// update raises the version.
+	private void extractUserconfig(String rodir, String gamedir) {
+		try (InputStream in = getAssets().open("cfg/userconfig.cfg")) {
+			java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+			byte[] buf = new byte[65536];
+			int n;
+			while ((n = in.read(buf)) > 0)
+				bos.write(buf, 0, n);
+			String wanted = bos.toString("UTF-8");
+
+			// the version stamp is the first line of the bundled file
+			int nl = wanted.indexOf('\n');
+			String wantedVersion = nl >= 0 ? wanted.substring(0, nl) : wanted;
+			File cfgFile = new File(rodir, gamedir + "/userconfig.cfg");
+			if (cfgFile.exists() && cfgFile.length() > 0) {
+				// plain FileInputStream, not java.nio.file.Files — minSdk is 21
+				java.io.ByteArrayOutputStream haveBuf = new java.io.ByteArrayOutputStream();
+				try (java.io.FileInputStream fin = new java.io.FileInputStream(cfgFile)) {
+					byte[] hbuf = new byte[65536];
+					int hn;
+					while ((hn = fin.read(hbuf)) > 0)
+						haveBuf.write(hbuf, 0, hn);
+				}
+				String have = haveBuf.toString("UTF-8");
+				int hn = have.indexOf('\n');
+				String haveVersion = hn >= 0 ? have.substring(0, hn) : have;
+				if (haveVersion.equals(wantedVersion)) {
+					Log.i(TAG, "userconfig.cfg already at " + wantedVersion.trim());
+					return;
+				}
+			}
+
+			File cfgDir = new File(rodir, gamedir);
+			if (!cfgDir.exists() && !cfgDir.mkdirs()) {
+				Log.w(TAG, "could not create " + cfgDir.getAbsolutePath());
+				return;
+			}
+			try (FileOutputStream out = new FileOutputStream(cfgFile)) {
+				out.write(wanted.getBytes("UTF-8"));
+			}
+			Log.i(TAG, "Extracted " + wantedVersion.trim() + " to " + cfgFile.getAbsolutePath());
+		} catch (Exception e) {
+			Log.w(TAG, "Could not extract userconfig.cfg: " + e);
+		}
 	}
 }

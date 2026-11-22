@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 import su.xash.engine.databinding.ActivityMainBinding
 import su.xash.engine.model.AppUpdater
 import su.xash.engine.util.CrashReports
+import su.xash.engine.util.SessionLog
 import su.xash.engine.util.dialogContentView
 import su.xash.engine.util.monospaceTextView
 import su.xash.engine.util.showDownloadProgressDialog
@@ -240,6 +241,11 @@ class MainActivity : AppCompatActivity() {
 		moveOrCopy(CrashReports.pendingSysinfo(this), File(entryDir, CrashReports.SYSINFO_NAME))
 		moveOrCopy(CrashReports.pendingIntent(this), File(entryDir, CrashReports.INTENT_NAME))
 		moveOrCopy(CrashReports.pendingEngineLog(this), File(entryDir, CrashReports.ENGINELOG_NAME))
+
+		// half-D v0.8.2: the logcat ring buffer survived the crash — dump
+		// the dead session's native stdout and GPU-driver lines into the
+		// entry so the bundle carries the full story, not just the Java side.
+		runCatching { SessionLog.dumpLogcat(File(entryDir, CrashReports.LOGCAT_NAME)) }
 
 		val entry = CrashReports.Entry(entryDir)
 		AlertDialog.Builder(this)
