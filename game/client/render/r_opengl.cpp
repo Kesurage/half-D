@@ -127,6 +127,44 @@ static void APIENTRY Stub_glAttachObjectARB( GLhandleARB containerObj, GLhandleA
 	if( pglAttachShader ) pglAttachShader( containerObj, obj );
 }
 
+// half-D: the last unresolved ARB shader-object name (v0.5.2 field failure —
+// one missing member disabled the whole GL_ARB_shader_objects check and with
+// it the custom renderer)
+static void APIENTRY Stub_glDetachObjectARB( GLhandleARB containerObj, GLhandleARB obj )
+{
+	if( pglDetachShader ) pglDetachShader( containerObj, obj );
+}
+
+// half-D: ES3 has no GL_POLYGON draw mode; a convex polygon is a triangle
+// fan from its first vertex. Used by the decal batcher (r_brushdecals).
+static void APIENTRY Stub_MultiDrawArrays( GLenum mode, const GLint *first, const GLsizei *count, GLsizei drawcount )
+{
+	if( !pglDrawArrays )
+		return;
+
+	GLenum fanMode = ( mode == GL_POLYGON ) ? GL_TRIANGLE_FAN : mode;
+
+	for( GLsizei i = 0; i < drawcount; i++ )
+	{
+		if( count[i] > 0 )
+			pglDrawArrays( fanMode, first[i], count[i] );
+	}
+}
+
+// half-D: ES3 exposes only the unsigned query result read; occlusion sample
+// counts and the 0/1 availability flag both fit an int unchanged
+static void APIENTRY Stub_GetQueryObjectivARB( GLuint id, GLenum pname, GLint *params )
+{
+	if( pglGetQueryObjectuivARB )
+		pglGetQueryObjectuivARB( id, pname, (GLuint *)params );
+}
+
+// half-D: fixed-function texenv vector state — the gl2 shim ignores scalar
+// texenv too, and the client never calls this at runtime
+static void APIENTRY Stub_TexEnvfv( GLenum target, GLenum pname, const GLfloat *params )
+{
+}
+
 static void APIENTRY Stub_glDeleteObjectARB( GLhandleARB obj )
 {
 	if( !pglIsProgram || !obj )
@@ -780,8 +818,12 @@ void GL_CheckExtension( const char *name, const dllfunc_t *funcs, const char *cv
 			{ "glCreateShaderObjectARB", (void *)Stub_glCreateShaderObjectARB },
 			{ "glCreateProgramObjectARB", (void *)Stub_glCreateProgramObjectARB },
 			{ "glAttachObjectARB", (void *)Stub_glAttachObjectARB },
+			{ "glDetachObjectARB", (void *)Stub_glDetachObjectARB },
 			{ "glDeleteObjectARB", (void *)Stub_glDeleteObjectARB },
 			{ "glUseProgramObjectARB", (void *)Stub_glUseProgramObjectARB },
+			{ "glMultiDrawArrays", (void *)Stub_MultiDrawArrays },
+			{ "glGetQueryObjectivARB", (void *)Stub_GetQueryObjectivARB },
+			{ "glTexEnvfv", (void *)Stub_TexEnvfv },
 			{ "glGetInfoLogARB", (void *)Stub_glGetInfoLogARB },
 			{ "glGetObjectParameterivARB", (void *)Stub_glGetObjectParameterivARB },
 			{ "glShaderSourceARB", (void *)Stub_glShaderSourceARB },

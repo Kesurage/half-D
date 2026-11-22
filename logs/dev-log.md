@@ -620,3 +620,37 @@ Fixes:
 - engine ref: all three array mesh builders (Normal/Float/Chrome) now
   truncate a batch that would overflow the vertex or element arrays instead
   of writing past them
+
+## 2026-11-22 — v0.5.3: the last shader-object name + the perf watchdog
+
+The 09:55→v0.5.2 log: multitexture passed (v0.5.2 fix confirmed), and the
+failure moved to the NEXT gate — GL_ARB_shader_objects. Root cause this
+time: glDetachObjectARB. The ARB->core strip gives "glDetachObject" which
+is not a function (core name is glDetachShader); it was the ONE member of
+the 65-entry shaderobjectsfuncs table with no resolution path, and a single
+NULL member disables the whole extension check.
+
+Wrote tools/audit_v053.py, which models the client's GL_CheckExtension
+resolution chain exactly as the code runs it (native ES3 | shim exports |
+special-case retries | esStubs | ARB/EXT strip) for every name in every
+dllfunc_t table. Result before the fix: 273/277, with the four gaps being
+glDetachObjectARB, glMultiDrawArrays (really used by the decal batcher,
+with GL_POLYGON — a mode ES3 doesn't have), glGetQueryObjectivARB (ES3
+only exposes the unsigned read), glTexEnvfv (unused at runtime; the shim
+NoOps the scalar texenv calls anyway). All four now have stubs:
+DetachObject->pglDetachShader, MultiDrawArrays->per-batch draw with
+POLYGON->TRIANGLE_FAN conversion, GetQueryObjectiv->uiv cast, TexEnvfv->NoOp.
+Audit now reads 277/277 — every table name in the client resolves on the
+native path, so there is no round four hiding in the function tables.
+
+Verified the remaining init gates offline: shading_language_100 and
+fragment_shader (NULL tables, predict true on ES), vertex_shader (clean),
+FBO + get_program_binary (clean), hardware skinning (both query paths —
+COMPONENTS natively, VECTORS fallback — land >= 32 bones on Mali).
+
+Also: low-fps watchdog in R_DiagFrame. When a 5 s heartbeat window averages
+under 30 fps it now prints a [watchdog] block: per-stage milliseconds,
+dips/binds/polys-per-dip, and a verdict naming the dominant cost (scene
+geometry / grass / studio polys / postfx / texture uploads / cubemaps /
+draw-call bound / shader-switch bound / not-GPU-bound) plus the concrete
+cvars to turn down. All advice cvar names verified to exist in the codebase.

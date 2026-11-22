@@ -2272,6 +2272,51 @@ static void R_DiagFrame( void )
 			r_diag_ms_scene / windowFrames, r_diag_ms_postfx / windowFrames,
 			r_diag_ms_animatex / windowFrames, r_diag_ms_cubemaps / windowFrames );
 
+		// half-D: low-fps watchdog — when the window average drops under
+		// 30 fps, name the dominant cost and what to turn down. Captured
+		// before the window reset below, from the same accumulators the
+		// heartbeat just printed.
+		float diagFps = windowFrames / windowS;
+		float diagFrameMs = windowS * 1000.0f / windowFrames;
+		float diagMsScene = r_diag_ms_scene / windowFrames;
+		float diagMsPostfx = r_diag_ms_postfx / windowFrames;
+		float diagMsAnim = r_diag_ms_animatex / windowFrames;
+		float diagMsCube = r_diag_ms_cubemaps / windowFrames;
+		float diagDips = (float)r_stats.dip_count;
+		float diagBinds = (float)r_stats.num_shader_binds;
+		float diagPolysPerDip = diagDips > 0 ? ( r_stats.c_world_polys + r_stats.c_studio_polys + r_stats.c_sprite_polys ) / diagDips : 0;
+
+		if( diagFps < 30.0f )
+		{
+			gEngfuncs.Con_Printf( "perf: ^1[watchdog] %.1f fps < 30^7 | frame %.1f ms | scene %.1f postfx %.1f animtex %.1f cubemap %.1f | dips %d binds %d polys/dip %.0f\n",
+				diagFps, diagFrameMs, diagMsScene, diagMsPostfx, diagMsAnim, diagMsCube,
+				(int)diagDips, (int)diagBinds, diagPolysPerDip );
+
+			if( diagMsScene > diagFrameMs * 0.6f )
+			{
+				if( r_stats.c_grass_polys > r_stats.c_world_polys + r_stats.c_studio_polys )
+					gEngfuncs.Con_Printf( "perf: [watchdog] verdict: ^1SCENE-BOUND, detail grass dominates^7 (%d grass polys vs %d world + %d studio) — advice: r_grass 0, r_grass_shadows 0\n",
+						(int)r_stats.c_grass_polys, (int)r_stats.c_world_polys, (int)r_stats.c_studio_polys );
+				else if( r_stats.c_world_polys > r_stats.c_studio_polys * 2 )
+					gEngfuncs.Con_Printf( "perf: [watchdog] verdict: ^1SCENE-BOUND, world geometry^7 (%d wpoly) — advice: gl_mobile_quality 0, r_decals_ext 0\n", (int)r_stats.c_world_polys );
+				else
+					gEngfuncs.Con_Printf( "perf: [watchdog] verdict: ^1SCENE-BOUND, studio models^7 (%d epoly) — advice: cl_lod_enable 1, cl_lod_bias 1\n", (int)r_stats.c_studio_polys );
+			}
+			else if( diagMsPostfx > diagFrameMs * 0.25f )
+				gEngfuncs.Con_Printf( "perf: [watchdog] verdict: ^1POSTFX-BOUND^7 (%.1f ms) — advice: r_blur_strength 0, gl_mobile_quality 0\n", diagMsPostfx );
+			else if( diagMsAnim > diagFrameMs * 0.15f )
+				gEngfuncs.Con_Printf( "perf: [watchdog] verdict: ^1TEXTURE-UPLOAD-BOUND^7 (%.1f ms animated texture uploads) — advice: gl_water_planar 0, r_glowshellfreq 0\n", diagMsAnim );
+			else if( diagMsCube > diagFrameMs * 0.15f )
+				gEngfuncs.Con_Printf( "perf: [watchdog] verdict: ^1CUBEMAP-BOUND^7 (%.1f ms) — advice: gl_cubemaps 0\n", diagMsCube );
+			else if( diagDips > 40.0f && diagPolysPerDip < 500.0f )
+				gEngfuncs.Con_Printf( "perf: [watchdog] verdict: ^1DRAW-CALL-BOUND^7 (%d dips at %.0f polys each — many tiny batches) — advice: report with this log, batching gap\n", (int)diagDips, diagPolysPerDip );
+			else if( diagBinds > diagDips * 3.0f )
+				gEngfuncs.Con_Printf( "perf: [watchdog] verdict: ^1SHADER-SWITCH-BOUND^7 (%d binds vs %d dips) — advice: report with this log, material churn\n", (int)diagBinds, (int)diagDips );
+			else
+				gEngfuncs.Con_Printf( "perf: [watchdog] verdict: ^1NOT GPU-SCENE-BOUND^7 (stages sum to %.1f of %.1f ms) — the cost is in simulation/HUD/audio; report with this log\n",
+					diagMsScene + diagMsPostfx + diagMsAnim + diagMsCube, diagFrameMs );
+		}
+
 		r_diag_ms_scene = r_diag_ms_postfx = 0;
 		r_diag_ms_animatex = r_diag_ms_cubemaps = 0;
 		windowFrames = 0;
