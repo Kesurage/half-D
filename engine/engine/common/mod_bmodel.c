@@ -3145,10 +3145,19 @@ static void Mod_LoadTextures( model_t *mod, dbspmodel_t *bmod )
 {
 #if !XASH_DEDICATED
 	// release old sky layers first
+	// half-D v0.7.2: R_GetBuiltinTexture LOADS by name when the texture is
+	// absent — on maps without a Quake-style sky texture that turned this
+	// cleanup into two failed file searches ("texture not found:
+	// alpha_sky/solid_sky") per world load. Find first, free only if it
+	// exists; GL_FreeTexture( 0 ) is also harmless upstream, but this way
+	// the log stays clean.
 	if( !Host_IsDedicated() && bmod->isworld )
 	{
-		ref.dllFuncs.GL_FreeTexture( R_GetBuiltinTexture( "alpha_sky" ));
-		ref.dllFuncs.GL_FreeTexture( R_GetBuiltinTexture( "solid_sky" ));
+		int skytex;
+		skytex = ref.dllFuncs.GL_FindTexture( "alpha_sky" );
+		if( skytex ) ref.dllFuncs.GL_FreeTexture( skytex );
+		skytex = ref.dllFuncs.GL_FindTexture( "solid_sky" );
+		if( skytex ) ref.dllFuncs.GL_FreeTexture( skytex );
 	}
 #endif
 

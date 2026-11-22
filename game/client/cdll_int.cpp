@@ -59,6 +59,15 @@ int Initialize( cl_enginefunc_t *pEnginefuncs, int iVersion )
 	if( g_iXashEngineBuildNumber <= 0 )
 		g_iXashEngineBuildNumber = (int)CVAR_GET_FLOAT( "buildnum" );
 
+	// half-D v0.7.2: register the studio renderer cvars BEFORE the
+	// diffusion.cfg exec below. In performance mode the studio renderer's
+	// Init() never runs, so the config printed "Unknown command
+	// cl_lod_scale / cl_viewmodel_fov" on every launch. Registration is
+	// idempotent (later CVAR_REGISTER with the same name returns the
+	// existing cvar), so the full-look mode is unaffected.
+	CVAR_REGISTER( "cl_lod_scale", "5.0", FCVAR_ARCHIVE );
+	CVAR_REGISTER( "cl_viewmodel_fov", "90", FCVAR_ARCHIVE );
+
 	// diffusion - execute mod-specific stuff
 	ClientCmd( "exec diffusion.cfg\n" );
 

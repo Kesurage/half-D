@@ -837,3 +837,38 @@ The 14:52 crash log + crash.log told a two-part story:
    Decision: performance mode runs on gl4es — the proven texture path —
    minus the client renderer (the measured cost driver). gles3compat
    stays -ref-selectable.
+
+## 2026-11-22 — v0.7.2: the sky, the noise, and protecting the 90 fps
+
+The v0.7.1 field report: 90 fps, log nearly clean. Three items left, all
+load-time — the frame path is untouched:
+
+1. THE SKY (the visible "gumbled/missing" candidate). Diffusion maps set
+   no worldspawn skyname — the custom renderer drew a shader skydome and
+   never needed one. The engine fell back to sv_skyname's default
+   "desert", CheckSkybox("gfx/env/desert") found no files in the game
+   data, and because the name equals DEFAULT_SKYBOX_NAME the miss warning
+   is skipped (ref_common.c R_SetupSky) — so the sky silently never set
+   up, and sky surfaces rendered with whatever was bound (garbage). Fix:
+   a generated 6-face seam-free skybox (scripts/gen_skybox.py — color is
+   a pure function of the sample direction; all 12 cube edges verify 0
+   diff) shipped as gfx/env/desert{rt,bk,lf,ft,up,dn}.tga in the APK
+   assets, which FS mounts at highest priority. Zero engine code change
+   on the happy path; custom-named skies now also have a working
+   fallback.
+
+2. solid_sky/alpha_sky "texture not found" pairs: cleanup noise, not a
+   failure. Mod_LoadTextures frees old sky layers via
+   R_GetBuiltinTexture(name), which LOADS by name when absent — on maps
+   without a Quake-style sky that meant two failed file searches per
+   world load. Fixed with Find-then-free.
+
+3. "Unknown command cl_lod_scale / cl_viewmodel_fov": the studio
+   renderer's Init() registers those; performance mode skips it, but the
+   client's Initialize() execs diffusion.cfg anyway. Registered both in
+   Initialize() before the exec (idempotent with the later registration
+   in full-look mode).
+
+Performance guard: every change is texture generation, cleanup and cvar
+registration — all load-time. The 90 fps frame path (engine renderer, no
+client shaders) is byte-identical.
