@@ -1279,8 +1279,23 @@ void R_ShadersFrameStart( bool bUnlimited )
 
 	g_tShaderLastRefill = now;
 
+	// half-D v0.8.2: the unlimited (map-load) drain is wall-clock bounded.
+	// The v0.8.1 device log measured a 4489 ms frame from ~10 queued compiles
+	// at ~460 ms each; the v0.7.4 measurement was 50-70 queued compiles =
+	// 23-32 s of frozen main thread = system watchdog kill, read by the user
+	// as "crashes when I open a menu / chapter". Bound the drain: the rest
+	// stays queued and drains at r_shader_lazy_hz in the first seconds of
+	// play. Inline load-time lookups are unaffected (they run behind the
+	// plaque, and R_PrecompileShadersSync owns the systematic pass there).
+	const float flDrainBudgetSeconds = bUnlimited ? 2.0f : 0.0f;
+	auto drainStart = std::chrono::steady_clock::now();
+
 	while( g_iNumPendingShaders > 0 && g_flShaderTokens >= 1.0f )
 	{
+		if( flDrainBudgetSeconds > 0.0f
+			&& std::chrono::duration<float>( std::chrono::steady_clock::now() - drainStart ).count() >= flDrainBudgetSeconds )
+			break; // budget spent — the rest drains at r_shader_lazy_hz, no multi-second freeze
+
 		pending_shader_t p = g_PendingShaders[0];
 		g_iNumPendingShaders--;
 
@@ -1332,6 +1347,17 @@ static glsl_program_t *GL_FindUberShader( const char *glname, const char *option
 	{
 		if( !Q_strcmp( prog->name, glname ) && !Q_strcmp( prog->options, options ))
 		{
+			// half-D v0.8.2: negative cache, same as GL_InitGPUShader above.
+			// A handle-0 entry is a permutation that already failed to
+			// compile/link on this driver. Returning it made the caller
+			// treat the dead program as success, while GL_BindShader (which
+			// checks ->handle) silently kept the PREVIOUS shader bound —
+			// those surfaces drew with a wrong, stale shader: the
+			// "no texture / garbage" look. Return NULL so the caller skips
+			// the surface this frame instead of drawing it wrong.
+			if( !prog->handle )
+				return NULL;
+
 			prog->status |= SHADER_STATUS_HASHED;
 			return prog;
 		}
@@ -2539,7 +2565,14 @@ word GL_UberShaderForSolidBmodel( msurface_t *s, bool translucent )
 #endif
 	if( IsLandscape )
 	{
-		if( landscape && landscape->terrain && landscape->terrain->layermap.gl_diffuse_id != 0 )
+		// half-D v0.8.2: multi-layer terrain needs texture arrays. On gl4es
+		// (no arrays) terrain.h's sampler2DArray fallback macro only applies
+		// under GL_ES, so the requested permutation can never compile — the
+		// surface would draw with a stale/failed shader (blank ground).
+		// Gate the directives on array support: the surface keeps its base
+		// BmodelSolid shader and renders single-layer instead of not at all.
+		if( landscape && landscape->terrain && landscape->terrain->layermap.gl_diffuse_id != 0
+			&& GL_Support( R_TEXTURE_ARRAY_EXT ))
 		{
 			GL_AddShaderDirective( options, va( "TERRAIN_NUM_LAYERS %i", landscape->terrain->numLayers ));
 			GL_AddShaderDirective( options, "BMODEL_MULTI_LAYERS" );
@@ -2660,7 +2693,11 @@ word GL_UberShaderForBmodelDlight( const plight_t *pl, msurface_t *s, bool trans
 	}
 	else // landscape
 	{
-		if( landscape && landscape->terrain && landscape->terrain->layermap.gl_diffuse_id != 0 )
+		// half-D v0.8.2: same texture-array gate as the BmodelSolid path —
+		// without arrays the multi-layer permutation cannot compile on this
+		// driver; keep the surface on the base (single-layer) shader.
+		if( landscape && landscape->terrain && landscape->terrain->layermap.gl_diffuse_id != 0
+			&& GL_Support( R_TEXTURE_ARRAY_EXT ))
 		{
 			GL_AddShaderDirective( options, va( "TERRAIN_NUM_LAYERS %i", landscape->terrain->numLayers ) );
 			GL_AddShaderDirective( options, "BMODEL_MULTI_LAYERS" );

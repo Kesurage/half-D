@@ -2303,7 +2303,18 @@ static void R_DiagFrame( void )
 				diagFps, diagFrameMs, diagMsScene, diagMsPostfx, diagMsAnim, diagMsCube,
 				(int)diagDips, (int)diagBinds, diagPolysPerDip );
 
-			if( diagMsScene > diagFrameMs * 0.6f )
+			// half-D v0.8.2: deferred shader compiles happen INSIDE the scene
+			// stage (~460 ms each through gl4es), so a compile-drain window
+			// looks "scene-bound" to the checks below. The v0.8.1 log's 8 fps
+			// window (scene 119 ms with only 62 wpoly) was mislabeled "world
+			// geometry". Name pending compiles first so the next field log
+			// diagnoses itself.
+			if( R_ShadersPendingCount() > 3 )
+			{
+				gEngfuncs.Con_Printf( "perf: [watchdog] verdict: ^1SHADER-COMPILE-BOUND^7 (%d deferred compiles pending at ~0.5 s each) — advice: let the queue drain (or r_shader_lazy_hz 3); if the count never falls, unusable permutations are being re-requested — report with this log\n",
+					R_ShadersPendingCount() );
+			}
+			else if( diagMsScene > diagFrameMs * 0.6f )
 			{
 				if( r_stats.c_grass_polys > r_stats.c_world_polys + r_stats.c_studio_polys )
 					gEngfuncs.Con_Printf( "perf: [watchdog] verdict: ^1SCENE-BOUND, detail grass dominates^7 (%d grass polys vs %d world + %d studio) — advice: r_grass 0, r_grass_shadows 0\n",

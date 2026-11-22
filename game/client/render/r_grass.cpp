@@ -579,7 +579,13 @@ void R_RenderGrassOnList( void )
 	int hLastTexture = -1;
 	int hLastBumpMap = -1;
 
-	if( !CVAR_TO_BOOL( r_grass ) || !FBitSet( world->features, WORLD_HAS_GRASS ))
+	// half-D v0.8.2: no grass in background (menu) maps. The v0.8.1 device
+	// log measured the menu background map at 23 fps with 5128 grass polys
+	// vs 494 world polys — the single dominant scene cost, burned on a map
+	// nobody plays. cl_background is the engine's "menu background level"
+	// flag.
+	if( !CVAR_TO_BOOL( r_grass ) || !FBitSet( world->features, WORLD_HAS_GRASS )
+		|| ( cl_background && CVAR_TO_BOOL( cl_background )))
 		return; // don't waste time
 	
 	GL_Cull( GL_NONE );	// grass is double-sided poly

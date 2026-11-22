@@ -520,8 +520,13 @@ void V_VidInit( void )
 		r_menu_blur->value = 0.0f;            // paused-menu GaussBlur readbacks
 		r_sun_shadow->value = 0.0f;           // sun shadow passes
 		r_grass_shadows->value = 0.0f;        // grass depth pass
-		r_grass_fade_start->value = 384.0f;
-		r_grass_fade_dist->value = 768.0f;
+		// half-D v0.8.2: 256/512 (was 384/768). The v0.8.1 device log
+		// measured grass at 10x the world poly count (5128 vs 494) in the
+		// menu map at 23 fps on Mali-G57 MC2 — fade distance scales the
+		// count by distance^2, so halving it cuts grass polys ~4x. Grass
+		// still covers the near field where it reads visually.
+		r_grass_fade_start->value = 256.0f;
+		r_grass_fade_dist->value = 512.0f;
 		gl_sunshafts->value = 0.0f;
 		gl_exposure->value = 0.0f;
 		gl_lensflare->value = 0.0f;
