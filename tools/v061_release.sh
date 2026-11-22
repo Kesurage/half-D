@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 TOKEN=$(cat /home/z/my-project/.cred/token)
 AUTH="Authorization: token $TOKEN"
-RUN_ID=PLACEHOLDER_RUN
+RUN_ID=44998982536
 REPO=Kesurage/half-D
 TMP=rel_v061
 rm -rf "$TMP" && mkdir -p "$TMP"
