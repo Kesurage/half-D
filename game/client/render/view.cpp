@@ -153,6 +153,7 @@ cvar_t *gl_tonemap;
 cvar_t *gl_lensflare;
 cvar_t *gl_water_refraction;
 cvar_t *gl_water_planar;
+cvar_t *r_shader_frame_ms; // half-D v0.8.0: per-frame lazy compile budget (ms)
 cvar_t *gl_exposure;
 cvar_t *gl_emboss;
 cvar_t *gl_specular;
