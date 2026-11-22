@@ -813,3 +813,27 @@ the project. panvk (Mesa's Mali Vulkan driver) targets Valhall but is
 experimental; using it would mean writing a new renderer in Vulkan from
 scratch against a moving driver — months of work with worse odds than the
 paths we have already measured. The evidence-backed fast path ships today.
+
+## 2026-11-22 — v0.7.1: the v0.7.0 crash, decoded in two parts
+
+The 14:52 crash log + crash.log told a two-part story:
+
+1. **SIGSEGV at 0x0 = NULL function pointer call.** The v0.7.0 gate
+   returned from R_Init BEFORE GL_InitExtensions, so every client pgl
+   pointer stayed NULL. The crosshair HUD draws with raw
+   pglBindVertexArray/pglBufferSubDataARB/pglDrawArrays — first weapon
+   switch after map load → call through NULL → crash right after the
+   crosshair texture-load burst (the log's last lines). Fix: run
+   R_InitRefState + GL_InitExtensions BEFORE the gate — the exact
+   v0.5.2/v0.6.x-proven state where those pointers are resolved; the
+   crosshair calls then hit real no-op GL entry points.
+
+2. **gles3compat breaks the engine's texture path on this game's data.**
+   Under v0.7.0 (gles3compat) EVERY .dds the HUD/world requested failed
+   ("texture not found": health.dds, crosshairs, scopes, use icons) while
+   the identical requests all succeeded under v0.6.1 (gl4es) — mounts
+   identical, imagelib identical, only the ref differs. This is also the
+   real explanation for v0.5.0's "black terrain" on the native path.
+   Decision: performance mode runs on gl4es — the proven texture path —
+   minus the client renderer (the measured cost driver). gles3compat
+   stays -ref-selectable.

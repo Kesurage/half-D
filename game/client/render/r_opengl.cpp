@@ -1330,28 +1330,36 @@ R_Init
 */
 bool R_Init( void )
 {
+	R_InitRefState();
+	GL_InitExtensions();
+
 	// half-D v0.7.0: performance mode. The custom GL2 renderer is disabled
 	// by default on this fork: on the target device it measured 11-18 fps
 	// at best through gl4es (219k-258k epoly in car scenes — the models
 	// carry no studioLOD data, so LOD cannot reduce them) with shader-
 	// compile storms up to 31 s at map load, and the precompile alternative
 	// cost 6+ minutes of 0.5-1 fps menu on every launch. The engine's
-	// native GLES renderer draws the game instead: no client shader
-	// compiles at all, upstream-tested batching. All client render hooks
-	// already no-op on g_fRenderInitialized == false (the v0.5.2 veto path).
+	// native renderer draws the game instead: no client shader compiles at
+	// all, upstream-tested batching. All client render hooks already no-op
+	// on g_fRenderInitialized == false (the v0.5.2 veto path).
 	// gl_custom_renderer 1 (+ -ref gl4es) restores the full shader look.
-	if( gl_custom_renderer && !CVAR_TO_BOOL( gl_custom_renderer ))
+	//
+	// half-D v0.7.1: GL_InitExtensions MUST run first even when gating.
+	// v0.7.0 returned before it, leaving every client pgl pointer NULL —
+	// the crosshair HUD draws with pglBindVertexArray/pglDrawArrays and
+	// crashed with SIGSEGV at 0x0 on device (14:52 log). Resolving the
+	// table is the v0.5.2/v0.6.x-proven state: those calls then hit real
+	// (harmless, no-op) GL entry points. HUD_RenderFrame returns 0 below
+	// via g_fRenderInitialized == false, so the engine ref draws the frame.
+	if( g_fRenderInitialized && gl_custom_renderer && !CVAR_TO_BOOL( gl_custom_renderer ))
 	{
 		g_fRenderInitialized = false;
 		CVAR_SET_FLOAT( "gl_renderer", 0 );
 		CVAR_SET_FLOAT( "ui_shadersdone", 1 ); // mainui hides every menu until this is 1
-		ConPrintf( "^3half-D performance mode:^7 the game's custom shader renderer is disabled; the engine's native GLES renderer draws the game.\n" );
-		ConPrintf( "^3half-D:^7 full shader look: set gl_custom_renderer 1 and add -ref gl4es to the launcher arguments.\n" );
+		ConPrintf( "^3half-D performance mode:^7 the game's custom shader renderer is disabled; the engine renderer draws the game.\n" );
+		ConPrintf( "^3half-D:^7 full shader look: set gl_custom_renderer 1 (renderer -ref gl4es is the default).\n" );
 		return false;
 	}
-
-	R_InitRefState();
-	GL_InitExtensions();
 
 	if( !g_fRenderInitialized )
 	{

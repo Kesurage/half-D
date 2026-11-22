@@ -803,21 +803,21 @@ qboolean R_Init( void )
 		success = R_LoadRenderer( requested_cmdline, false );
 
 #if XASH_ANDROID
-	// half-D v0.7.0: ref_gles3compat is the default — PERFORMANCE MODE.
-	// The client's custom shader renderer is now off by default
-	// (gl_custom_renderer 0; see r_opengl.cpp R_Init), so the engine's own
-	// native GLES renderer draws the game: no gl4es per-call translation,
-	// no client shader compiles, upstream-tested batching. v0.6.1 field
-	// data on the target device (Infinix Hot 50 4G, Mali-G57): the gl4es
-	// custom-renderer path peaked at 11-18 fps with 31 s shader storms;
-	// the native engine path is the fast one. gl4es is the automatic
-	// fallback and stays the right choice for the full shader look
-	// (gl_custom_renderer 1 + -ref gl4es in the launcher arguments).
+	// half-D v0.7.1: gl4es is the default — PERFORMANCE MODE runs on it.
+	// v0.7.0 tried the native gles3compat ref and the device log proved
+	// the engine's texture path fails on this game's DDS data under it
+	// (every HUD/world .dds request "not found" — the same failure behind
+	// the v0.5.0 "black terrain"), while the identical requests all
+	// succeed under gl4es (v0.6.1 log, zero HUD texture misses). The
+	// client's custom shader renderer stays off by default
+	// (gl_custom_renderer 0) — that was the measured cost driver, not the
+	// ref. So: engine renderer + gl4es = the proven texture path minus the
+	// client renderer's compile storms and draw-call churn.
 	if( !success )
 	{
-		success = R_LoadRenderer( "gles3compat", false );
+		success = R_LoadRenderer( "gl4es", false );
 		if( !success )
-			success = R_LoadRenderer( "gl4es", false );
+			success = R_LoadRenderer( "gles3compat", false );
 	}
 #endif
 
