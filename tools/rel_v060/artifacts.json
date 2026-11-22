@@ -1,0 +1,45 @@
+{
+  "total_count": 2,
+  "artifacts": [
+    {
+      "id": 14743804016,
+      "node_id": "MDg6QXJ0aWZhY3QxNDc0MzgwNDAxNg==",
+      "name": "half-D-engine-apk",
+      "size_in_bytes": 48642176,
+      "url": "https://api.github.com/repos/Kesurage/half-D/actions/artifacts/14743804016",
+      "archive_download_url": "https://api.github.com/repos/Kesurage/half-D/actions/artifacts/14743804016/zip",
+      "expired": false,
+      "digest": "sha256:81286bffb4890b5274ea96de90895357a4eda78822305f15f5978902ce7e2c14",
+      "created_at": "2026-11-22T07:02:58Z",
+      "updated_at": "2026-11-22T07:02:58Z",
+      "expires_at": "2027-02-20T06:54:26Z",
+      "workflow_run": {
+        "id": 44994623263,
+        "repository_id": 1465497038,
+        "head_repository_id": 1465497038,
+        "head_branch": "main",
+        "head_sha": "2f5f64ddbe6674422dcee3cf1b5a6220a482e120"
+      }
+    },
+    {
+      "id": 14743152191,
+      "node_id": "MDg6QXJ0aWZhY3QxNDc0MzE1MjE5MQ==",
+      "name": "diffusion-android-libs",
+      "size_in_bytes": 23933254,
+      "url": "https://api.github.com/repos/Kesurage/half-D/actions/artifacts/14743152191",
+      "archive_download_url": "https://api.github.com/repos/Kesurage/half-D/actions/artifacts/14743152191/zip",
+      "expired": false,
+      "digest": "sha256:d0dc8f122076d84b7a569f535189a62327f216c2a203539865262b4446e2a19b",
+      "created_at": "2026-11-22T06:43:18Z",
+      "updated_at": "2026-11-22T06:43:18Z",
+      "expires_at": "2027-02-20T06:38:23Z",
+      "workflow_run": {
+        "id": 44994623263,
+        "repository_id": 1465497038,
+        "head_repository_id": 1465497038,
+        "head_branch": "main",
+        "head_sha": "2f5f64ddbe6674422dcee3cf1b5a6220a482e120"
+      }
+    }
+  ]
+}
