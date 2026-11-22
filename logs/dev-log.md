@@ -599,3 +599,24 @@ Fix:
 Note for the next log read: with multitexture now on, the client-side
 texture-array check should also flip on (ES3 core) — terrain shaders were
 validated for that path (776 pairs including terrain, 0 failures).
+
+## 2026-11-22 — v0.5.2: the multitexture veto, round two + engine mesh batch overflow
+
+The 09:55 crash: v0.5.1's es_context skip worked (log printed "3.2 (GLES)")
+but "GL_ARB_multitexture is not supported" STILL appeared. The failure moved
+one branch deeper in GL_CheckExtension: cvar_from_engine=true makes the client
+read the ENGINE's gl_arb_multitexture cvar — the native ES ref never probes
+the desktop ARB names, so the cvar is missing or archived 0, and the check
+returned "disabled" before looking at the function table that v0.5.0 made
+fully resolvable. Meanwhile the engine's own fallback renderer took over,
+drew the world fine, and crashed in R_StudioBuildArrayFloatMesh writing
+studio mesh batches past the fixed MAXSTUDIOVERTS arrays (high-poly models).
+
+Fixes:
+- client: on ES contexts the capability-cvar value is ignored — the function
+  table decides (r_extensions master switch still honored)
+- client: GL_MAX_TEXTURE_UNITS is ES1 fixed-function and fails on native ES3;
+  fall back to GL_MAX_TEXTURE_IMAGE_UNITS like the engine ref does
+- engine ref: all three array mesh builders (Normal/Float/Chrome) now
+  truncate a batch that would overflow the vertex or element arrays instead
+  of writing past them

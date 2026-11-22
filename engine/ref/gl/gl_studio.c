@@ -1763,6 +1763,13 @@ static void R_StudioBuildArrayNormalMesh( short *ptricmds, vec3_t *pstudionorms,
 
 		for( ; i > 0; i--, ptricmds += 4 )
 		{
+			// half-D: high-poly meshes can expand past the fixed batch
+			// buffers (MAXSTUDIOVERTS) — seen as a wild write on device
+			// (09:55 crash, R_StudioBuildArrayFloatMesh). Truncate the
+			// batch instead of writing past the arrays.
+			if( g_studio.numverts >= MAXSTUDIOVERTS || g_studio.numelems >= ARRAYSIZE( g_studio.arrayelems ) - 3 )
+				break;
+
 			GLubyte *cl = g_studio.arraycolor[g_studio.numverts];
 
 			vertexState = R_StudioBuildIndices( tri_strip, vertexState );
@@ -1802,6 +1809,13 @@ static void R_StudioBuildArrayFloatMesh( short *ptricmds, vec3_t *pstudionorms )
 
 		for( ; i > 0; i--, ptricmds += 4 )
 		{
+			// half-D: high-poly meshes can expand past the fixed batch
+			// buffers (MAXSTUDIOVERTS) — seen as a wild write on device
+			// (09:55 crash, R_StudioBuildArrayFloatMesh). Truncate the
+			// batch instead of writing past the arrays.
+			if( g_studio.numverts >= MAXSTUDIOVERTS || g_studio.numelems >= ARRAYSIZE( g_studio.arrayelems ) - 3 )
+				break;
+
 			GLubyte *cl = g_studio.arraycolor[g_studio.numverts];
 
 			vertexState = R_StudioBuildIndices( tri_strip, vertexState );
@@ -1842,6 +1856,13 @@ static void R_StudioBuildArrayChromeMesh( short *ptricmds, vec3_t *pstudionorms,
 
 		for( ; i > 0; i--, ptricmds += 4 )
 		{
+			// half-D: high-poly meshes can expand past the fixed batch
+			// buffers (MAXSTUDIOVERTS) — seen as a wild write on device
+			// (09:55 crash, R_StudioBuildArrayFloatMesh). Truncate the
+			// batch instead of writing past the arrays.
+			if( g_studio.numverts >= MAXSTUDIOVERTS || g_studio.numelems >= ARRAYSIZE( g_studio.arrayelems ) - 3 )
+				break;
+
 			GLubyte *cl = g_studio.arraycolor[g_studio.numverts];
 
 			vertexState = R_StudioBuildIndices( tri_strip, vertexState );

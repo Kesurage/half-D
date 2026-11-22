@@ -692,7 +692,13 @@ void GL_CheckExtension( const char *name, const dllfunc_t *funcs, const char *cv
 		if( cvar_from_engine ) parm = CVAR_GET_POINTER( cvarname );
 		else parm = CVAR_REGISTER( (char *)cvarname, "1", FCVAR_GLCONFIG );
 
-		if( !CVAR_TO_BOOL( parm ) || ( !CVAR_TO_BOOL( r_extensions ) && r_ext != R_OPENGL_110 ))
+		// half-D: cvar_from_engine reads the ENGINE's capability cvars, which
+		// the desktop GL ref creates from GL_ARB_* extension strings. The native
+		// GLES ref never probes those legacy names, so the cvar is missing or
+		// archived 0 — and the client renderer disabled itself on device even
+		// though every function resolved (09:55 field crash). On an ES context
+		// the function table is the source of truth; ignore the cvar value.
+		if(( !glConfig.es_context && !CVAR_TO_BOOL( parm )) || ( !CVAR_TO_BOOL( r_extensions ) && r_ext != R_OPENGL_110 ))
 		{
 			ALERT( at_aiconsole, "- disabled\n" );
 			GL_SetExtension( r_ext, false );
@@ -960,9 +966,17 @@ static void GL_InitExtensions( void )
 	GL_CheckExtension( "GL_ARB_multitexture", multitexturefuncs, "gl_arb_multitexture", R_ARB_MULTITEXTURE, true );
 
 	if( GL_Support( R_ARB_MULTITEXTURE ))
+	{
 		pglGetIntegerv( GL_MAX_TEXTURE_UNITS, &glConfig.max_texture_units );
+		// half-D: GL_MAX_TEXTURE_UNITS is a fixed-function ES1/desktop enum;
+		// native GLES3 rejects the query and leaves the value at 0. The
+		// engine ref falls back to texture image units (gl_opengl.c) — do the
+		// same, it's what the bound-texture code actually cares about.
+		if( glConfig.max_texture_units <= 1 )
+			pglGetIntegerv( GL_MAX_TEXTURE_IMAGE_UNITS_ARB, &glConfig.max_texture_units );
+	}
 
-	if( glConfig.max_texture_units == 1 )
+	if( glConfig.max_texture_units <= 1 )
 		GL_SetExtension( R_ARB_MULTITEXTURE, false );
 
 	if( !GL_Support( R_ARB_MULTITEXTURE ))
