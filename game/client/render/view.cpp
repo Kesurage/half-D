@@ -153,7 +153,7 @@ cvar_t *gl_tonemap;
 cvar_t *gl_lensflare;
 cvar_t *gl_water_refraction;
 cvar_t *gl_water_planar;
-cvar_t *r_shader_frame_ms; // half-D v0.8.0: per-frame lazy compile budget (ms)
+cvar_t *r_shader_lazy_hz; // half-D v0.8.1: lazy compile rate limit (per second)
 cvar_t *gl_exposure;
 cvar_t *gl_emboss;
 cvar_t *gl_specular;
@@ -448,13 +448,15 @@ void V_Init( void )
 	gl_lensflare = CVAR_REGISTER( "gl_lensflare", "1", FCVAR_ARCHIVE );
 	gl_water_refraction = CVAR_REGISTER( "gl_water_refraction", "1", FCVAR_ARCHIVE );
 	gl_water_planar = CVAR_REGISTER( "gl_water_planar", "0", FCVAR_ARCHIVE );
-	// half-D v0.8.0: per-frame shader compile budget in milliseconds. Lazy
-	// uber-shader compiles cost ~460 ms each through gl4es; without a budget
-	// a new area queues 50-70 of them inside ONE frame (the 32-35 s frozen
-	// frames in the v0.7.4 device log). Beyond the budget the renderer draws
-	// with an already-compiled shader of the same family and defers the real
-	// one to the next frames. 0 disables the budget (old behavior).
-	r_shader_frame_ms = CVAR_REGISTER( "r_shader_frame_ms", "60", FCVAR_ARCHIVE );
+	// half-D v0.8.1: lazy shader compiles per second (each ~460 ms through
+	// gl4es). Out-of-token misses return NULL — the surface is skipped for
+	// that frame and pops in once compiled; never a wrong permutation, never
+	// a multi-compile frozen frame. Default 1 = one ~0.5 s hitch per second
+	// in a novel area (playable between hitches) instead of a 35 s freeze;
+	// the whole deferred queue also flushes instantly at the next map load.
+	// 0 = compile everything on first use (pre-v0.8.0 behavior, brings the
+	// 35 s spikes back); higher = faster pop-in, more hitches.
+	r_shader_lazy_hz = CVAR_REGISTER( "r_shader_lazy_hz", "1", FCVAR_ARCHIVE );
 	gl_exposure = CVAR_REGISTER( "gl_exposure", "1", FCVAR_ARCHIVE );
 	gl_emboss = CVAR_REGISTER( "gl_emboss", "1", FCVAR_ARCHIVE );
 	gl_specular = CVAR_REGISTER( "gl_specular", "1", FCVAR_ARCHIVE );

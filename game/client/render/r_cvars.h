@@ -108,7 +108,7 @@ extern cvar_t *r_testdlight;
 extern cvar_t *gl_lensflare;
 extern cvar_t *gl_water_refraction;
 extern cvar_t *gl_water_planar;
-extern cvar_t *r_shader_frame_ms; // half-D v0.8.0: per-frame lazy compile budget (ms)
+extern cvar_t *r_shader_lazy_hz; // half-D v0.8.1: lazy compile rate limit (per second)
 extern cvar_t *gl_exposure;
 extern cvar_t *gl_emboss;
 extern cvar_t *gl_specular;

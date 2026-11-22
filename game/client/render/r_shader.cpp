@@ -1205,21 +1205,25 @@ static glsl_program_t *GL_CreateUberShader( GLuint slot, const char *glname, con
 	return shader;
 }
 
-// half-D v0.8.0 ── budgeted lazy compilation ──────────────────────────────
-// The v0.7.4 device log proved the remaining killer: ~950 permutations still
-// compile lazily at ~460 ms each through gl4es, and a new area queues 50-70
-// of them INSIDE ONE FRAME — the measured 32.7 s / 35.3 s frozen frames that
-// end with an Android watchdog kill (the crash at ch1map0_load). The binary
-// disk cache cannot rescue this (a binary-loaded program has no source for
-// gl4es's fpe wrapper, so it draws without fixed-function customization).
-// Instead: every frame gets a small compile budget (r_shader_frame_ms,
-// default 60 ms). When the budget is spent, draws fall back to any already
-// compiled program of the same family (same glname — identical uniform set,
-// memory-safe) and the real permutation is queued; the queue drains at the
-// start of the next frames within the same budget. A 70-shader area changes
-// from "35 s frozen then crash" to "2-3 s of simplified shading at playable
-// fps, then correct". ──────────────────────────────────────────────────────
-static std::chrono::steady_clock::time_point g_ShadersFrameDeadline = std::chrono::steady_clock::time_point::max();
+// half-D v0.8.1 ── rate-limited lazy compilation ───────────────────────────
+// v0.8.0's budget system failed on device in two ways. The "family
+// fallback" drew surfaces with a wrong permutation — blank textures. And
+// the frame-start drain still paid one full ~460 ms compile per frame
+// (the deadline was checked between compiles, not during one) — a ~2 fps
+// drain and another watchdog near-miss. v0.8.1 does neither:
+//   * a lazy miss either compiles inline (spending one rate-limiter token)
+//     or returns NULL. Every caller already handles NULL by skipping that
+//     surface/mesh this frame (SURF_NODRAW / STUDIO_NF_NODRAW, retried
+//     next frame and cleared on success) — an unseen material pops in a
+//     moment later; it never renders wrong, never blank.
+//   * tokens refill at r_shader_lazy_hz per second (default 2), so a new
+//     area costs at most two ~460 ms hitches per second while its shaders
+//     compile, instead of one 35 s frozen frame.
+//   * the deferred queue drains at frame starts under the same limit, and
+//     UNLIMITED at map load (R_NewMap), behind the loading plaque.
+// r_shader_lazy_hz 0 restores the pre-v0.8.0 compile-on-first-use behavior.
+static float g_flShaderTokens = 1.0f;
+static std::chrono::steady_clock::time_point g_tShaderLastRefill = std::chrono::steady_clock::now();
 
 struct pending_shader_t
 {
@@ -1231,14 +1235,9 @@ struct pending_shader_t
 #define MAX_PENDING_SHADERS 1024
 static pending_shader_t g_PendingShaders[MAX_PENDING_SHADERS];
 static int g_iNumPendingShaders = 0;
-static int g_iShadersDeferredTotal = 0;  // session counter, printed at shutdown/log
+static int g_iShadersDeferredTotal = 0;  // session counter, printed by the heartbeat
 
 static glsl_program_t *GL_FindUberShader( const char *glname, const char *options = NULL, pfnShaderCallback pfnInitUniforms = NULL );
-
-static bool R_ShaderBudgetAvailable( void )
-{
-	return std::chrono::steady_clock::now() < g_ShadersFrameDeadline;
-}
 
 static void R_QueuePendingShader( const char *glname, const char *options, pfnShaderCallback pfnInitUniforms )
 {
@@ -1262,20 +1261,25 @@ static void R_QueuePendingShader( const char *glname, const char *options, pfnSh
 	g_iShadersDeferredTotal++;
 }
 
-// called once per rendered frame from HUD_RenderFrame (and with a large
-// budget from R_PrecompileShadersSync) — resets the frame deadline and
-// drains the deferred queue while the budget lasts
-void R_ShadersFrameStart( float budgetSeconds )
+// called from HUD_RenderFrame (rate-limited) and R_NewMap (unlimited,
+// behind the loading plaque): refills tokens and drains the queue
+void R_ShadersFrameStart( bool bUnlimited )
 {
-	// r_shader_frame_ms <= 0 disables the budget entirely: deadline at
-	// infinity, so every lazy miss compiles inline — the pre-v0.8.0
-	// behavior, kept as an escape hatch.
-	if( budgetSeconds <= 0.0f )
-		g_ShadersFrameDeadline = std::chrono::steady_clock::time_point::max();
-	else
-		g_ShadersFrameDeadline = std::chrono::steady_clock::now() + std::chrono::duration_cast<std::chrono::steady_clock::duration>( std::chrono::duration<float>( budgetSeconds ));
+	auto now = std::chrono::steady_clock::now();
 
-	while( g_iNumPendingShaders > 0 && R_ShaderBudgetAvailable())
+	if( bUnlimited || !r_shader_lazy_hz || r_shader_lazy_hz->value <= 0.0f )
+	{
+		g_flShaderTokens = 1e9f; // no limiting: map load or escape hatch
+	}
+	else
+	{
+		g_flShaderTokens = Q_min( 1.0f, g_flShaderTokens
+			+ std::chrono::duration<float>( now - g_tShaderLastRefill ).count() * r_shader_lazy_hz->value );
+	}
+
+	g_tShaderLastRefill = now;
+
+	while( g_iNumPendingShaders > 0 && g_flShaderTokens >= 1.0f )
 	{
 		pending_shader_t p = g_PendingShaders[0];
 		g_iNumPendingShaders--;
@@ -1283,7 +1287,7 @@ void R_ShadersFrameStart( float budgetSeconds )
 		if( g_iNumPendingShaders > 0 )
 			memmove( &g_PendingShaders[0], &g_PendingShaders[1], g_iNumPendingShaders * sizeof( pending_shader_t ));
 
-		// may already have been compiled by a direct path meanwhile
+		// may already have been compiled by an inline path meanwhile
 		unsigned int hash = COM_HashKey( va( "%s %s", p.glname, p.options ), SHADERS_HASH_SIZE );
 		bool bExists = false;
 
@@ -1297,7 +1301,10 @@ void R_ShadersFrameStart( float budgetSeconds )
 		}
 
 		if( !bExists )
-			GL_FindUberShader( p.glname, p.options, p.pfnInitUniforms ); // compiles now, under budget
+		{
+			g_flShaderTokens -= 1.0f;
+			GL_FindUberShader( p.glname, p.options, p.pfnInitUniforms );
+		}
 	}
 }
 
@@ -1330,36 +1337,21 @@ static glsl_program_t *GL_FindUberShader( const char *glname, const char *option
 		}
 	}
 
-	// half-D v0.8.0: budget check. If this frame already spent its compile
-	// allowance, do NOT compile here (this is the 35-second-freeze site).
-	// Queue the real permutation and fall back to any compiled program of
-	// the same family — same shader family means the same uniform set, so
-	// the draw stays memory-safe, just visually simplified until the queue
-	// catches up (seconds). If the family has nothing compiled yet, compile
-	// anyway: that is bounded by the number of shader families (~15), once.
-	if( g_ShadersFrameDeadline != std::chrono::steady_clock::time_point::max() && !R_ShaderBudgetAvailable())
+	// half-D v0.8.1: rate limiter. A compile through gl4es costs ~460 ms —
+	// any in-frame compile is a stall, so cap how many can happen per
+	// second (r_shader_lazy_hz, default 2). Out of tokens: queue the real
+	// permutation and return NULL. Every caller handles NULL by skipping
+	// that surface/mesh this frame and retrying the next one — no wrong
+	// permutation is ever drawn (the v0.8.0 family fallback drew blanks).
+	if( r_shader_lazy_hz && r_shader_lazy_hz->value > 0.0f )
 	{
-		bool bFamilyCompiled = false;
-
-		for( unsigned int j = 1; j < num_glsl_programs; j++ )
-		{
-			if( glsl_programs[j].name[0] && !Q_strcmp( glsl_programs[j].name, glname ))
-			{
-				bFamilyCompiled = true;
-				break;
-			}
-		}
-
-		if( bFamilyCompiled )
+		if( g_flShaderTokens < 1.0f )
 		{
 			R_QueuePendingShader( glname, options, pfnInitUniforms );
-
-			for( unsigned int j = 1; j < num_glsl_programs; j++ )
-			{
-				if( glsl_programs[j].name[0] && !Q_strcmp( glsl_programs[j].name, glname ))
-					return &glsl_programs[j]; // family fallback
-			}
+			return NULL;
 		}
+
+		g_flShaderTokens -= 1.0f;
 	}
 
 	// find free spot

@@ -2370,12 +2370,12 @@ int HUD_RenderFrame( const ref_viewpass_t *rvp )
 	// half-D: per-stage timing (reported by the heartbeat)
 	auto diagT0 = std::chrono::steady_clock::now();
 
-	// half-D v0.8.0: reset the per-frame shader compile budget and drain the
-	// deferred queue first (r_shader_frame_ms, default 60 ms). All lazy
-	// GL_FindUberShader misses beyond the budget fall back to a compiled
-	// family program and defer — the 32-second single-frame compile storms
-	// from the v0.7.4 device log cannot happen anymore.
-	R_ShadersFrameStart( r_shader_frame_ms->value / 1000.0f );
+	// half-D v0.8.1: refill the shader compile rate limiter and drain the
+	// deferred queue (r_shader_lazy_hz compiles per second, default 2).
+	// Out-of-token lazy misses return NULL and the surface pops in a moment
+	// later — no multi-second frozen frames, no wrong-permutation fallback
+	// (the two v0.8.0 regressions).
+	R_ShadersFrameStart( false );
 
 	GL_LoadAndRebuildCubemaps( RI->params );  // diffusioncubemaps
 

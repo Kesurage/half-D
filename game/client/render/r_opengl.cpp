@@ -1395,12 +1395,12 @@ bool R_Init( void )
 	// ("1 fps, everything broken") could not be attributed from the log
 	// because ref, renderer mode and compile mode were never stated
 	// together. This line settles all three for every future log.
-	// half-D v0.8.0: compile mode states the budget system too.
-	ConPrintf( "^2half-D v0.8.0:^7 ref=%s renderer=custom(gl4es) es_context=%s binary_shader_cache=%s compile=%s\n",
+	// half-D v0.8.1: compile mode states the rate limiter too.
+	ConPrintf( "^2half-D v0.8.1:^7 ref=%s renderer=custom(gl4es) es_context=%s binary_shader_cache=%s compile=%s\n",
 		CVAR_GET_STRING( "r_refdll_loaded" ),
 		glConfig.es_context ? "yes" : "no",
 		GL_Support( R_BINARY_SHADER_EXT ) ? "yes" : "no",
-		GL_Support( R_BINARY_SHADER_EXT ) ? "precompile-pass" : "lazy+sync-at-mapload+budgeted(r_shader_frame_ms)" );
+		GL_Support( R_BINARY_SHADER_EXT ) ? "precompile-pass" : "rate-limited-lazy(r_shader_lazy_hz)+sync-at-mapload" );
 
 	return true;
 }

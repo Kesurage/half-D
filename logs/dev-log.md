@@ -990,3 +990,45 @@ Expected on device: no more multi-second frozen frames (watchdog kill
 gone), worst scene one pass instead of four. Honest ceiling: the gl4es
 path lands the worst scene in the mid-teens fps; 30 fps everywhere
 remains Stage 2 (native ES3 backend) work per the rewrite plan.
+
+## 2026-11-22 (evening) — v0.8.1: the v0.8.0 regression, owned and fixed
+
+The field report on v0.8.0: less fps, all textures blank, kinda crashes.
+Both regressions were mine, and the code explained each:
+
+1. BLANK TEXTURES: the family-fallback returned a DIFFERENT permutation
+   of the same shader family (wrong options → wrong attribute/uniform
+   contract → surfaces drawn untextured/unlit). There is no such thing
+   as a safe wrong permutation. Removed entirely.
+2. LESS FPS + WATCHDOG NEAR-MISSES: the frame-start drain checked the
+   deadline BETWEEN compiles — one compile is ~460 ms and always
+   overruns a 60 ms budget, so every frame with a pending queue entry
+   paid a full compile: ~2 fps for as long as the queue drained.
+
+v0.8.1 replaces the whole mechanism with a rate limiter
+(r_shader_lazy_hz, default 1/s):
+- a lazy miss either compiles inline (spending one token) or returns
+  NULL — every caller already handles NULL by skipping that surface/
+  mesh this frame and retrying the next (SURF_NODRAW/STUDIO_NF_NODRAW,
+  cleared on success). Unseen materials pop in; nothing renders wrong.
+- worst case in a novel area: one ~0.5 s hitch per second while the
+  shaders compile, instead of a 35 s frozen frame or a 2 fps drain.
+- the deferred queue flushes UNLIMITED at map load, behind the plaque.
+- 0 restores the pre-v0.8.0 compile-on-first-use behavior.
+
+Stage 2 groundwork (the actual fix for the compile cost): the engine's
+imagelib now decodes DXT1/DXT3/DXT5 to RGBA32 on the CPU when the ref
+reports no hardware S3TC. This was THE native-path blocker: under the
+native GLES ref, GL_TextureImageCompressed is compiled out (XASH_GLES)
+and the DDS loader rejected every compressed texture — "texture not
+found" for the whole game (the v0.5.x garbage screenshots, the v0.7.0
+log). The decoder is verified by a standalone harness against
+hand-computed reference blocks (tools/test_dxt_decoder.c) — including
+two real bugs the harness caught before shipping: DXT5 indices 0/1 must
+be the exact endpoints, and the 0/255 alpha codewords belong to the
+a0<=a1 branch only. Dormant on gl4es (it advertises S3TC, so
+IL_DDS_HARDWARE is set and compressed loading continues as before).
+
+Next: the native ES3 renderer cut-in behind a cvar, A/B-verified against
+this build's gl4es path — that is where the compile cost and the epoly
+throughput actually get fixed, per the rewrite plan.
