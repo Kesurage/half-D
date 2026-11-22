@@ -31,6 +31,7 @@ object SessionLog {
 	// Dump the current logcat ring buffer (this app's own lines: the
 	// engine's native stdout, SDL, and our launcher) to out.
 	// Apps may read their own UID's log lines, so no permission needed.
+	@JvmStatic
 	fun dumpLogcat(out: File): Boolean {
 		return try {
 			out.parentFile?.mkdirs()
@@ -51,6 +52,7 @@ object SessionLog {
 	// Bundle a finished session: engine.log + logcat.txt under
 	// files/logs/sessions/session-<timestamp>/. Safe to call from any
 	// thread; never throws.
+	@JvmStatic
 	fun archiveSession(ctx: Context, engineLog: File?) {
 		try {
 			val dir = File(sessionsRoot(ctx), "session-" + stamp.format(Date())).apply { mkdirs() }
