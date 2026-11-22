@@ -672,8 +672,14 @@ void GL_CheckExtension( const char *name, const dllfunc_t *funcs, const char *cv
 
 	ALERT( at_aiconsole, "GL_CheckExtension: %s ", name );
 
-	if(( name[2] == '_' || name[3] == '_' ) && !Q_strstr( glConfig.extensions_string, name ))
+	if(( name[2] == '_' || name[3] == '_' ) && !glConfig.es_context && !Q_strstr( glConfig.extensions_string, name ))
 	{
+		// half-D: desktop drivers advertise capabilities as GL_ARB_*/GL_EXT_*
+		// extension strings. Native GLES3 has most of them in core and never
+		// lists the strings (GL_ARB_multitexture being the one that disabled
+		// the whole custom renderer in the 09:28 field crash — multitexture
+		// is core in ES3). On an ES context let the function table decide:
+		// if the entry points resolve, the capability exists.
 		GL_SetExtension( r_ext, false );	// update render info
 		ALERT( at_aiconsole, "- ^1failed\n" );
 		return;

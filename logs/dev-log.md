@@ -571,3 +571,31 @@ Known limitations on the ES path (documented for the field log): studio
 decals render through the shim's fixed-function program (attribute
 locations differ from the decal shader); shadow permutations compile but
 are untested on device; gl4es remains selectable via -ref gl4es.
+
+## 2026-11-22 — v0.5.1: crash fix (first native-GLES3 field run)
+
+The 09:28 crash zip tells a good story: the port itself worked end to end —
+"Loading renderer: gles3compat", "GL_VERSION: 3.2 (GLES)", menu world loaded,
+map load started. Then signal 11 in V_CalcFirstPersonRefdef (view.cpp:2533):
+the weapon-obstacle trace dereferences worldmodel->leafs, and worldmodel was
+NULL because "GL_ARB_multitexture is not supported. Custom renderer disabled"
+appeared in the log one line after the context came up.
+
+Root cause: GL_CheckExtension requires desktop GL_ARB_*/GL_EXT_* extension
+STRINGS before it even tries the function table. Native GLES3 has multitexture
+in core and never lists the string, so the check bailed, the custom renderer
+disabled itself, worldmodel never got set — and the first first-person view
+calculation faulted at NULL+0xa0.
+
+Fix:
+- on ES contexts the string precheck is skipped; the function table is the
+  source of truth (every table was already made to resolve via shim/stubs/
+  ARB-alias in v0.5.0, and ES3 advertises the real capabilities it has —
+  shadow_samplers already showed "yes" in this log)
+- defensive guard at the crash site: the obstacle trace only runs when
+  worldmodel/viewleaf are live, so a future renderer-init failure degrades
+  to "no weapon pullback" instead of a segfault
+
+Note for the next log read: with multitexture now on, the client-side
+texture-array check should also flip on (ES3 core) — terrain shaders were
+validated for that path (776 pairs including terrain, 0 failures).

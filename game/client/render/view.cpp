@@ -2530,7 +2530,10 @@ void V_CalcFirstPersonRefdef( struct ref_params_s *pparams )
 	view->origin.y += VelY;
 
 	// move weapon back if there's an obstacle
-	if( !RP_OUTSIDE( RI->viewleaf ) )
+	// half-D: worldmodel is set by the client renderer's world load; if the
+	// renderer failed to initialize (bad GL caps etc.) it stays NULL and the
+	// leaf lookup below would fault — skip the obstacle trace instead.
+	if( worldmodel != NULL && RI->viewleaf != NULL && !RP_OUTSIDE( RI->viewleaf ) )
 	{
 		pmtrace_t ptr;
 		Vector VecEnd;
