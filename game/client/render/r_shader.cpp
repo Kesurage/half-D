@@ -1205,7 +1205,106 @@ static glsl_program_t *GL_CreateUberShader( GLuint slot, const char *glname, con
 	return shader;
 }
 
-static glsl_program_t *GL_FindUberShader( const char *glname, const char *options = NULL, pfnShaderCallback pfnInitUniforms = NULL )
+// half-D v0.8.0 ── budgeted lazy compilation ──────────────────────────────
+// The v0.7.4 device log proved the remaining killer: ~950 permutations still
+// compile lazily at ~460 ms each through gl4es, and a new area queues 50-70
+// of them INSIDE ONE FRAME — the measured 32.7 s / 35.3 s frozen frames that
+// end with an Android watchdog kill (the crash at ch1map0_load). The binary
+// disk cache cannot rescue this (a binary-loaded program has no source for
+// gl4es's fpe wrapper, so it draws without fixed-function customization).
+// Instead: every frame gets a small compile budget (r_shader_frame_ms,
+// default 60 ms). When the budget is spent, draws fall back to any already
+// compiled program of the same family (same glname — identical uniform set,
+// memory-safe) and the real permutation is queued; the queue drains at the
+// start of the next frames within the same budget. A 70-shader area changes
+// from "35 s frozen then crash" to "2-3 s of simplified shading at playable
+// fps, then correct". ──────────────────────────────────────────────────────
+static std::chrono::steady_clock::time_point g_ShadersFrameDeadline = std::chrono::steady_clock::time_point::max();
+
+struct pending_shader_t
+{
+	char glname[64];
+	char options[MAX_OPTIONS_LENGTH];
+	pfnShaderCallback pfnInitUniforms;
+};
+
+#define MAX_PENDING_SHADERS 1024
+static pending_shader_t g_PendingShaders[MAX_PENDING_SHADERS];
+static int g_iNumPendingShaders = 0;
+static int g_iShadersDeferredTotal = 0;  // session counter, printed at shutdown/log
+
+static glsl_program_t *GL_FindUberShader( const char *glname, const char *options = NULL, pfnShaderCallback pfnInitUniforms = NULL );
+
+static bool R_ShaderBudgetAvailable( void )
+{
+	return std::chrono::steady_clock::now() < g_ShadersFrameDeadline;
+}
+
+static void R_QueuePendingShader( const char *glname, const char *options, pfnShaderCallback pfnInitUniforms )
+{
+	if( g_iNumPendingShaders >= MAX_PENDING_SHADERS )
+		return; // queue full: stays lazy, will compile on a later first use
+
+	// dedupe: every draw of the same material misses the cache and lands
+	// here again — without this check the queue fills with duplicates
+	for( int i = 0; i < g_iNumPendingShaders; i++ )
+	{
+		if( !Q_strcmp( g_PendingShaders[i].glname, glname ? glname : "" )
+			&& !Q_strcmp( g_PendingShaders[i].options, options ? options : "" ))
+			return;
+	}
+
+	pending_shader_t &p = g_PendingShaders[g_iNumPendingShaders];
+	Q_strncpy( p.glname, glname ? glname : "", sizeof( p.glname ));
+	Q_strncpy( p.options, options ? options : "", sizeof( p.options ));
+	p.pfnInitUniforms = pfnInitUniforms;
+	g_iNumPendingShaders++;
+	g_iShadersDeferredTotal++;
+}
+
+// called once per rendered frame from HUD_RenderFrame (and with a large
+// budget from R_PrecompileShadersSync) — resets the frame deadline and
+// drains the deferred queue while the budget lasts
+void R_ShadersFrameStart( float budgetSeconds )
+{
+	// r_shader_frame_ms <= 0 disables the budget entirely: deadline at
+	// infinity, so every lazy miss compiles inline — the pre-v0.8.0
+	// behavior, kept as an escape hatch.
+	if( budgetSeconds <= 0.0f )
+		g_ShadersFrameDeadline = std::chrono::steady_clock::time_point::max();
+	else
+		g_ShadersFrameDeadline = std::chrono::steady_clock::now() + std::chrono::duration_cast<std::chrono::steady_clock::duration>( std::chrono::duration<float>( budgetSeconds ));
+
+	while( g_iNumPendingShaders > 0 && R_ShaderBudgetAvailable())
+	{
+		pending_shader_t p = g_PendingShaders[0];
+		g_iNumPendingShaders--;
+
+		if( g_iNumPendingShaders > 0 )
+			memmove( &g_PendingShaders[0], &g_PendingShaders[1], g_iNumPendingShaders * sizeof( pending_shader_t ));
+
+		// may already have been compiled by a direct path meanwhile
+		unsigned int hash = COM_HashKey( va( "%s %s", p.glname, p.options ), SHADERS_HASH_SIZE );
+		bool bExists = false;
+
+		for( glsl_program_t *prog = glsl_programsHashTable[hash]; prog != NULL; prog = prog->nextHash )
+		{
+			if( !Q_strcmp( prog->name, p.glname ) && !Q_strcmp( prog->options, p.options ))
+			{
+				bExists = true;
+				break;
+			}
+		}
+
+		if( !bExists )
+			GL_FindUberShader( p.glname, p.options, p.pfnInitUniforms ); // compiles now, under budget
+	}
+}
+
+int R_ShadersPendingCount( void ) { return g_iNumPendingShaders; }
+int R_ShadersDeferredTotal( void ) { return g_iShadersDeferredTotal; }
+
+static glsl_program_t *GL_FindUberShader( const char *glname, const char *options, pfnShaderCallback pfnInitUniforms )
 {
 	const char	*find;
 	unsigned int	i, hash;
@@ -1224,10 +1323,42 @@ static glsl_program_t *GL_FindUberShader( const char *glname, const char *option
 	// check for coexist
 	for( prog = glsl_programsHashTable[hash]; prog != NULL; prog = prog->nextHash )
 	{
-		if( !Q_strcmp( prog->name, glname ) && !Q_strcmp( prog->options, options ) )
+		if( !Q_strcmp( prog->name, glname ) && !Q_strcmp( prog->options, options ))
 		{
 			prog->status |= SHADER_STATUS_HASHED;
 			return prog;
+		}
+	}
+
+	// half-D v0.8.0: budget check. If this frame already spent its compile
+	// allowance, do NOT compile here (this is the 35-second-freeze site).
+	// Queue the real permutation and fall back to any compiled program of
+	// the same family — same shader family means the same uniform set, so
+	// the draw stays memory-safe, just visually simplified until the queue
+	// catches up (seconds). If the family has nothing compiled yet, compile
+	// anyway: that is bounded by the number of shader families (~15), once.
+	if( g_ShadersFrameDeadline != std::chrono::steady_clock::time_point::max() && !R_ShaderBudgetAvailable())
+	{
+		bool bFamilyCompiled = false;
+
+		for( unsigned int j = 1; j < num_glsl_programs; j++ )
+		{
+			if( glsl_programs[j].name[0] && !Q_strcmp( glsl_programs[j].name, glname ))
+			{
+				bFamilyCompiled = true;
+				break;
+			}
+		}
+
+		if( bFamilyCompiled )
+		{
+			R_QueuePendingShader( glname, options, pfnInitUniforms );
+
+			for( unsigned int j = 1; j < num_glsl_programs; j++ )
+			{
+				if( glsl_programs[j].name[0] && !Q_strcmp( glsl_programs[j].name, glname ))
+					return &glsl_programs[j]; // family fallback
+			}
 		}
 	}
 

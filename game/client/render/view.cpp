@@ -447,6 +447,13 @@ void V_Init( void )
 	gl_lensflare = CVAR_REGISTER( "gl_lensflare", "1", FCVAR_ARCHIVE );
 	gl_water_refraction = CVAR_REGISTER( "gl_water_refraction", "1", FCVAR_ARCHIVE );
 	gl_water_planar = CVAR_REGISTER( "gl_water_planar", "0", FCVAR_ARCHIVE );
+	// half-D v0.8.0: per-frame shader compile budget in milliseconds. Lazy
+	// uber-shader compiles cost ~460 ms each through gl4es; without a budget
+	// a new area queues 50-70 of them inside ONE frame (the 32-35 s frozen
+	// frames in the v0.7.4 device log). Beyond the budget the renderer draws
+	// with an already-compiled shader of the same family and defers the real
+	// one to the next frames. 0 disables the budget (old behavior).
+	r_shader_frame_ms = CVAR_REGISTER( "r_shader_frame_ms", "60", FCVAR_ARCHIVE );
 	gl_exposure = CVAR_REGISTER( "gl_exposure", "1", FCVAR_ARCHIVE );
 	gl_emboss = CVAR_REGISTER( "gl_emboss", "1", FCVAR_ARCHIVE );
 	gl_specular = CVAR_REGISTER( "gl_specular", "1", FCVAR_ARCHIVE );
@@ -498,7 +505,7 @@ void V_Init( void )
 
 void V_VidInit( void )
 {
-	// half-D: mobile quality preset v6 (on yalnie's renderer base). The GL 2.x
+	// half-D: mobile quality preset v7 (on yalnie's renderer base). The GL 2.x
 	// path (gl4es/ES on phones) pays heavily for per-frame postfx and shadow
 	// passes — default to a tuned preset there so the game is playable. Set
 	// gl_mobile_quality 0 to keep full effects.
@@ -510,14 +517,21 @@ void V_VidInit( void )
 		r_menu_blur->value = 0.0f;            // paused-menu GaussBlur readbacks
 		r_sun_shadow->value = 0.0f;           // sun shadow passes
 		r_grass_shadows->value = 0.0f;        // grass depth pass
-		r_grass_fade_start->value = 512.0f;
-		r_grass_fade_dist->value = 1024.0f;
+		r_grass_fade_start->value = 384.0f;
+		r_grass_fade_dist->value = 768.0f;
 		gl_sunshafts->value = 0.0f;
 		gl_exposure->value = 0.0f;
 		gl_lensflare->value = 0.0f;
 		gl_water_refraction->value = 0.0f;
 		gl_allow_portals->value = 0.0f;       // portal recursion
-		r_mirrorquality->value = 1.0f;
+		// half-D v0.8.0: mirrors OFF. The v0.7.4 device log measured the
+		// heavy outdoor scene at FOUR view passes (437k epoly accumulated
+		// over ~110k unique) — every SURF_REFLECT face (car mirrors among
+		// them) re-renders the whole visible scene. One pass instead of
+		// four is the single biggest frame-time cut available on this
+		// device; reflective surfaces fall back to their base material
+		// (r_mirrorquality 3 restores them).
+		r_mirrorquality->value = 0.0f;
 		r_blur->value = 0.0f;                 // DoF blur
 		// half-D: FSR stays OFF — FSR() runs at any renderscale and does a
 		// pglCopyTexSubImage2D fullscreen copy every frame, which is a gl4es
@@ -527,7 +541,7 @@ void V_VidInit( void )
 		// half-D: renderscale 1.0 — at scale < 1 DownScale() does the same
 		// per-frame copy; full resolution with no copy beats a copied frame.
 		gl_renderscale->value = 1.0f;
-		ConPrintf( "renderer: mobile quality preset v6 applied (gl_mobile_quality 1)\n" );
+		ConPrintf( "renderer: mobile quality preset v7 applied (gl_mobile_quality 1)\n" );
 	}
 
 	PrevViewAngles = g_vecZero;

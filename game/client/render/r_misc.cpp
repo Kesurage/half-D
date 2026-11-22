@@ -2080,6 +2080,11 @@ void R_NewMap( void )
 	// at first draw — a 31 s frozen frame at map start and 9 s hitches
 	// mid-game on the Mali through gl4es (the v0.7.3 "1 fps" report).
 	// 45 s budget, once per session; leftovers stay lazy as before.
+	// half-D v0.8.0: the sync pass also runs the deferred-compile queue
+	// (from the in-game budget system) and gives map-load-time shader
+	// lookups a generous deadline, so nothing defers behind a load screen
+	// that could have compiled right there.
+	R_ShadersFrameStart( 600.0f );
 	R_PrecompileShadersSync( 45.0f );
 
 	// reset some world variables

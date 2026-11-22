@@ -2264,11 +2264,22 @@ static void R_DiagFrame( void )
 
 	if( windowS >= 5.0f )
 	{
-		gEngfuncs.Con_Printf( "perf: ^2%.1f fps^7 | frame avg %.1f ms, worst %.0f ms | wpoly %d epoly %d spoly %d grass %d | dips %d passes %d binds %d | stage ms: scene %.0f postfx %.0f anim %.1f cube %.1f\n",
+		// half-D v0.8.0: pass breakdown + shader deferral state — the v0.7.4
+		// device log showed "passes 4" with no way to see WHICH passes, and
+		// compile storms were invisible until they froze a frame.
+		int iMirrorPasses = (int)r_stats.c_mirror_passes;
+		int iPortalPasses = (int)r_stats.c_portal_passes;
+		int iScreenPasses = (int)r_stats.c_screen_passes;
+		int iOtherPasses = (int)r_stats.num_passes - iMirrorPasses - iPortalPasses - iScreenPasses;
+
+		gEngfuncs.Con_Printf( "perf: ^2%.1f fps^7 | frame avg %.1f ms, worst %.0f ms | wpoly %d epoly %d spoly %d grass %d | dips %d passes %d (mirror %d portal %d screen %d other %d) binds %d | shaddefer %d/%d | stage ms: scene %.0f postfx %.0f anim %.1f cube %.1f\n",
 			windowFrames / windowS, windowS * 1000.0f / windowFrames, worstMs,
 			r_stats.c_world_polys, r_stats.c_studio_polys,
 			r_stats.c_sprite_polys, r_stats.c_grass_polys,
-			(int)r_stats.dip_count, (int)r_stats.num_passes, (int)r_stats.num_shader_binds,
+			(int)r_stats.dip_count, (int)r_stats.num_passes,
+			iMirrorPasses, iPortalPasses, iScreenPasses, iOtherPasses,
+			(int)r_stats.num_shader_binds,
+			R_ShadersPendingCount(), R_ShadersDeferredTotal(),
 			r_diag_ms_scene / windowFrames, r_diag_ms_postfx / windowFrames,
 			r_diag_ms_animatex / windowFrames, r_diag_ms_cubemaps / windowFrames );
 
@@ -2358,6 +2369,13 @@ int HUD_RenderFrame( const ref_viewpass_t *rvp )
 
 	// half-D: per-stage timing (reported by the heartbeat)
 	auto diagT0 = std::chrono::steady_clock::now();
+
+	// half-D v0.8.0: reset the per-frame shader compile budget and drain the
+	// deferred queue first (r_shader_frame_ms, default 60 ms). All lazy
+	// GL_FindUberShader misses beyond the budget fall back to a compiled
+	// family program and defer — the 32-second single-frame compile storms
+	// from the v0.7.4 device log cannot happen anymore.
+	R_ShadersFrameStart( r_shader_frame_ms->value / 1000.0f );
 
 	GL_LoadAndRebuildCubemaps( RI->params );  // diffusioncubemaps
 

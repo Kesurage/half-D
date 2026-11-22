@@ -947,3 +947,46 @@ Next: the engine-level rewrite plan document (staged native GLES3 backend,
 LOD pipeline, asset/format audit, water/physics decoupling; panvk kept as
 evaluated-and-rejected). The gl4es path is the ceiling-bearer until
 Stage 2 lands.
+
+## 2026-11-22 (later) — v0.8.0: the v0.7.4 device log, decoded
+
+The uploaded engine.log (banner line confirms gl4es + custom renderer, the
+intended configuration) settles everything the v0.7.3 report could not:
+
+1. THE CRASH. The 45 s sync pass compiled only 98 permutations (~460 ms
+   each through gl4es; 11 were already cached, 52 skipped as unusable).
+   ~950 stayed lazy. Lazy compiles fire INSIDE a frame: a new area queues
+   50-70 of them in one draw pass — the measured 32.7 s and 35.3 s frozen
+   frames. A frozen main thread = Android watchdog kill; the log ends at
+   ch1map0_load.cfg, exactly such a spike at map transition.
+2. THE SLIDESHOW. The heavy outdoor scene ran at FOUR view passes
+   (437k epoly accumulated over ~110k unique) plus 33-41k grass at
+   0.3-4.4 fps. Every SURF_REFLECT face (car mirrors among them)
+   re-renders the whole visible scene; r_mirrorquality was still 1.
+3. Binary cache stays OFF, now for the right reason: fpe_CustomShader
+   cannot customize a binary-loaded program (no source), so cached
+   programs would draw without fixed-function state — wrong rendering,
+   not just the old crash. Budgeted lazy compile replaces the cache idea.
+
+Fixes:
+
+- Budgeted lazy compilation (r_shader_frame_ms, default 60 ms/frame):
+  GL_FindUberShader now checks a per-frame compile deadline. Over budget,
+  it returns any compiled program of the same family (same uniform set,
+  memory-safe) and queues the real permutation; the queue drains at each
+  frame start and at map load (600 s deadline). A 70-shader area changes
+  from "35 s frozen then watchdog kill" to "2-3 s of simplified shading
+  at playable fps, then correct". 0 restores the old inline behavior.
+- Mobile preset v7: r_mirrorquality 0 (one view pass instead of four in
+  the worst scene — the single biggest frame-time cut), grass fade
+  384/768 (was 512/1024).
+- Heartbeat v2: pass breakdown (mirror/portal/screen/other) and
+  shaddefer pending/total counters — the next log will show exactly what
+  the passes are and whether the budget system is keeping up.
+- Sync pass unchanged (45 s, once per session); banner now states the
+  budget system.
+
+Expected on device: no more multi-second frozen frames (watchdog kill
+gone), worst scene one pass instead of four. Honest ceiling: the gl4es
+path lands the worst scene in the mid-teens fps; 30 fps everywhere
+remains Stage 2 (native ES3 backend) work per the rewrite plan.
