@@ -728,3 +728,48 @@ That is the next round, and it must be data-driven: the perf heartbeat and
 the low-fps watchdog are in the client and run under gl4es, so the next
 engine.log tells us which stage eats the frame (scene vs postfx vs uploads,
 dips/binds, polys per draw). No more blind patching.
+
+## 2026-11-22 — v0.6.1: the 13:13 log decoded — renderer clean, three config fixes
+
+The v0.6.0 field log (13:13-13:24, clean session end) rewrites the picture:
+
+1. **Zero shader failures.** The "99+ renderer errors" are missing GAME
+   DATA: ~65 sounds (hgrunt/barney/scientist/alice pain+attack, footsteps/
+   grate, fvox, controller) + 2 models (bmec sedan_volkswagen_passat.mdl,
+   bmec2 truck.mdl) + solid_sky/alpha_sky/lambda.lmp. The author's source
+   repo ships no data files — these gaps ship with the game itself for
+   everyone. Documented, not fabricated.
+
+2. **The launch stall — my v0.5.0 precompile change.** "Precompiling
+   shaders from source (no binary cache on this driver)" printed 369
+   times: 714 permutations compiled at up to 2 s per frame (budget 3-50/
+   frame), 0.5-1 fps behind the menu for 6+ minutes, EVERY launch (no
+   binary cache on gl4es = nothing persists). The 13-76 s "lazy compile
+   stalls" it was meant to prevent were actually the readback cliffs fixed
+   in v0.2-v0.4. Fix: skip the pass without a binary cache — exactly the
+   reference behavior (v0.4.4 had it right; v0.5.0 regressed it).
+
+3. **LOD was OFF.** cl_lod_enable defaults 0 (desktop default, same in
+   the reference). The menu world rendered 1,050,168 epoly (2,250,360 at
+   worst), in-game 74,619 — every model at full detail at any distance.
+   Watchdog verdicts said it outright: SCENE-BOUND, studio models, advice
+   cl_lod_enable 1. Fix: force cl_lod_enable 1 in CStudioModelRenderer::
+   Init under the mobile preset (overrides the archived 0 from v0.6.0
+   sessions; models without embedded LOD levels unaffected; author
+   default cl_lod_scale 5.0 untouched).
+
+4. **Delivery: the libs zip was never needed.** The APK bundles the game
+   libs (client/server/menu), all 74 shaders, particles and fonts; the
+   log's "Adding directory: .../files/gamelibs/" confirms the game loads
+   them from the APK, and APK assets are mounted as the highest-priority
+   search path, shadowing anything extracted into the game folder. The
+   "download 24 MB of libs every release" pain was my release
+   instructions, not the tech. v0.6.1 ships APK-only; the release script
+   verifies self-containment (renderers + game libs + glsl assets)
+   before uploading.
+
+Also noted for the next round: the 0.5 fps watchdog verdict "NOT
+GPU-SCENE-BOUND (74.4 of 2041 ms)" during precompile — that bucket
+mislabeled shader compilation as simulation; it disappears with the
+precompile skip. Remaining watch item: dips 1162-2490 on the 1-2M epoly
+menu frames (LOD should collapse these too).

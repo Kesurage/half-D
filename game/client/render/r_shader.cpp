@@ -3183,14 +3183,20 @@ bool GL_PrecompileUberShaders( int &processed, int &total )
 
 	if( !GL_Support( R_BINARY_SHADER_EXT ) )
 	{
-		// half-D v0.5.0: keep precompiling from source even without the
-		// binary cache. v0.4.4 disabled the binary cache on gl4es (the
-		// crash fix), which also disabled this precompile pass — every
-		// permutation then compiled lazily mid-frame: 13-76 s stalls in the
-		// field logs. GL_InitGPUShader below compiles from source when no
-		// disk cache is available, and the per-frame budget spreads the
-		// cost behind the loading screen instead of inside gameplay.
-		Msg( "^3Precompiling shaders from source (no binary cache on this driver)^7\n" );
+		// half-D v0.6.1: skip the from-source precompile when the driver has
+		// no program binary cache (gl4es). v0.5.0 kept it on to avoid the
+		// 13-76 s lazy-compile stalls of the v0.4.x era — but those were the
+		// readback cliffs fixed in v0.2-v0.4; a first-use compile through
+		// gl4es costs ~100-500 ms. Meanwhile the pass itself became the
+		// biggest launch cost on device: 714 permutations at up to 2 s per
+		// frame, 6+ minutes of 0.5-1 fps behind the menu, repeated on EVERY
+		// launch because nothing can persist the result. The reference port
+		// (yalnie/Diffusion-Android) skips the pass here and lets shaders
+		// compile on first use — match that exactly.
+		Msg( "^3No shader binary cache on this driver — shaders compile on first use (reference behavior)^7\n" );
+		bPrecompiled = true;
+		CVAR_SET_FLOAT( "ui_shadersdone", 1 );
+		return true;
 	}
 
 	processed = shaders_processed_total;

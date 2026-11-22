@@ -123,6 +123,16 @@ void CStudioModelRenderer::Init( void )
 	m_pCvarLodBias = CVAR_REGISTER( "cl_lod_bias", "0", FCVAR_ARCHIVE );
 	m_pCvarLod = CVAR_REGISTER( "cl_lod_enable", "0", FCVAR_ARCHIVE );
 
+	// half-D: LOD off is the desktop default, but on phones the studio poly
+	// count is the frame killer — the 13:13 device log measured 74k epoly
+	// in-game and 1.05M in the menu world (watchdog: SCENE-BOUND, studio
+	// models), all at LOD 0 because v0.6.0 shipped with LOD disabled. The
+	// archived cvar keeps that 0, so force it on under the mobile quality
+	// preset (models without embedded LOD levels are unaffected; scale stays
+	// at the author default 5.0). Set cl_lod_enable 0 to opt back out.
+	if(( glConfig.version < 3.0f || glConfig.es_context ) && gl_mobile_quality && CVAR_TO_BOOL( gl_mobile_quality ))
+		m_pCvarLod->value = 1.0f;
+
 	m_pChromeSprite = IEngineStudio.GetChromeSprite();
 	m_chromeCount = 0;
 }
