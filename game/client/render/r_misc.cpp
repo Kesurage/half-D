@@ -2074,6 +2074,14 @@ void R_NewMap( void )
 	if( !g_fRenderInitialized )
 		return;
 
+	// half-D v0.7.4: run the budgeted shader precompile while the loading
+	// plaque is still up (R_NewMap is engine-called during map load, GL
+	// context current). Without it every uber-shader permutation compiles
+	// at first draw — a 31 s frozen frame at map start and 9 s hitches
+	// mid-game on the Mali through gl4es (the v0.7.3 "1 fps" report).
+	// 45 s budget, once per session; leftovers stay lazy as before.
+	R_PrecompileShadersSync( 45.0f );
+
 	// reset some world variables
 	for( i = 1; i < MAX_MODELS; i++ )
 	{

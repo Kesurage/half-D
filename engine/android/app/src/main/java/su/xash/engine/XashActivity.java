@@ -277,7 +277,13 @@ public class XashActivity extends SDLActivity {
 		// v0.7.0-0.7.2 engine-renderer mode drew the game without its
 		// materials/lighting/effects. -ref gles3compat stays selectable
 		// for experiments.
-		if (argv == null) argv = "-console -log -dev 2";
+		// half-D v0.7.4: -ref gl4es is FORCED on the default command line.
+		// ref_dll is FCVAR_RENDERINFO (saved to opengl.cfg), so a ref picked
+		// by an earlier build — v0.7.0 defaulted gles3compat, and
+		// gles3compat + custom renderer is the v0.5.0 field configuration:
+		// garbage textures at 0-4 fps — could silently win over new code
+		// defaults. Command line has top priority; this pins the proven ref.
+		if (argv == null) argv = "-console -log -dev 2 -ref gl4es";
 
 		return argv.split(" ");
 	}

@@ -906,3 +906,44 @@ engine-renderer mode remains one cvar away (gl_diffusion_renderer 0) for
 low-battery/speed runs. The next optimization round targets the 219k
 epoly scenes (the 11-18 fps floor) — distance cull + decal budget are the
 candidates, data first (gl_diag heartbeat is on by default).
+
+## 2026-11-22 — v0.7.4: kill the 1fps session — absorb the compile storm into the loading screen
+
+The v0.7.3 field report ("entire build flawed at 1fps", stuck bar, all
+problems back) decoded against the accumulated field data:
+
+- The stuck "Loading shaders" bar in the CUSTOM-renderer mode: the bar's
+  completion flag (bShadersCompiled) was only assigned at the END of
+  HUD_RenderFrame; on a slow/failing frame path it never got set, so a bar
+  for a compile pass that wasn't even running (no binary cache on gl4es —
+  per-frame pass returns immediately) sat on screen forever.
+- The 1fps: with the renderer back on and no binary cache, every uber-shader
+  permutation compiles from source at FIRST DRAW — the v0.6.1 measurement:
+  31 s frozen frame at map load, 9 s hitches mid-game. Read by the user as
+  "the whole build is 1fps". Correctness of the look is NOT in question
+  (v0.6.1 screenshots); the launch experience is.
+- Possible confounder: ref_dll is FCVAR_RENDERINFO (persisted in
+  opengl.cfg). A device that saved "gles3compat" during v0.7.0 would keep
+  loading it over every later code default — and gles3compat + custom
+  renderer is the v0.5.0 configuration: garbage at 0-4 fps. Cannot be
+  confirmed without a device log; eliminated structurally anyway.
+
+Fixes (all load-time or once-per-session; the 11-18 fps heavy-scene floor
+of the gl4es path is unchanged and is the rewrite's Stage 2 target):
+
+1. R_PrecompileShadersSync(45s): budgeted synchronous compile of the full
+   permutation list at R_NewMap — behind the engine's loading plaque where
+   a 32-36 s wait already exists. Leftovers stay lazy. Marks the pipeline
+   done (bPrecompiled, ui_shadersdone, gHUD.bShadersCompiled) so the HUD
+   bar never appears and mainui never blocks.
+2. bShadersCompiled also settled inside GL_PrecompileUberShaders' early
+   exits (both the bPrecompiled and no-cache branches).
+3. -ref gl4es forced on the launcher's default command line (top priority
+   over any archived ref_dll).
+4. One startup banner line: ref, es_context, binary cache, compile mode —
+   every future log states the exact rendering configuration.
+
+Next: the engine-level rewrite plan document (staged native GLES3 backend,
+LOD pipeline, asset/format audit, water/physics decoupling; panvk kept as
+evaluated-and-rejected). The gl4es path is the ceiling-bearer until
+Stage 2 lands.

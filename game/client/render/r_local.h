@@ -903,6 +903,7 @@ word GL_UberShaderForSolidStudio( struct mstudiomat_s *mat, bool vertex_lighting
 word GL_UberShaderForDlightStudio( const plight_t *dl, struct mstudiomat_s *mat, bool bone_weighting, int numbones = 0 );
 word GL_UberShaderForStudioDecal( struct mstudiomat_s *mat );
 bool GL_PrecompileUberShaders( int &processed, int &total );
+bool R_PrecompileShadersSync( float budgetSeconds ); // half-D v0.7.4: budgeted compile behind the loading plaque
 
 //
 // r_util.cpp

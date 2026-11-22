@@ -24,6 +24,7 @@ GNU General Public License for more details.
 #include "r_world.h"
 #include "crclib.h"
 #include "r_shaderlist.h"
+#include <chrono> // half-D v0.7.4: wall-clock budget in R_PrecompileShadersSync
 
 static bool bPrecompiled = false;
 static bool bCompilingShaders = false;
@@ -3169,7 +3170,7 @@ bool GL_PrecompileUberShaders( int &processed, int &total )
 	{
 		if( bPauseSent )
 		{
-			if( RENDER_GET_PARM( PARAM_GAMEPAUSED, 0 ) )
+			if( RENDER_GET_PARM( PARAM_GAMEPAUSED, 0 ))
 				ClientCmd( "pause\n" );
 
 			bPauseSent = false;
@@ -3178,6 +3179,10 @@ bool GL_PrecompileUberShaders( int &processed, int &total )
 		if( ui_shadersdone->value != 1 )
 			CVAR_SET_FLOAT( "ui_shadersdone", 1 );
 
+		// half-D v0.7.4: also settle the HUD bar flag here, not only at the
+		// end of HUD_RenderFrame — if a frame path ever returns early, the
+		// "Loading shaders 0/0" bar used to stick forever over the game.
+		gHUD.bShadersCompiled = true;
 		return true;
 	}
 
@@ -3196,6 +3201,10 @@ bool GL_PrecompileUberShaders( int &processed, int &total )
 		Msg( "^3No shader binary cache on this driver — shaders compile on first use (reference behavior)^7\n" );
 		bPrecompiled = true;
 		CVAR_SET_FLOAT( "ui_shadersdone", 1 );
+		// half-D v0.7.4: settle the HUD bar immediately (see the bPrecompiled
+		// branch above). v0.7.3 on device kept the bar on screen when frames
+		// were slow: nothing was compiling, the flag just never got set.
+		gHUD.bShadersCompiled = true;
 		return true;
 	}
 
@@ -3345,6 +3354,123 @@ bool GL_PrecompileUberShaders( int &processed, int &total )
 
 //	Msg( "This frame loaded shaders: %i\n", compiled_shader_counter );
 	return false;
+}
+
+/*
+========================
+R_PrecompileShadersSync
+
+half-D v0.7.4: absorb the lazy-compile stall into the map-load plaque.
+
+v0.7.3 field state: with the custom renderer back on and no program-binary
+cache on gl4es (deliberate — see the v0.4.4 revert note at binaryshaderfuncs),
+every uber-shader permutation compiles from source at FIRST DRAW. On device
+that is a 31 s frozen frame at map load and up to 9 s hitches mid-game —
+the user reads it as "the entire build is flawed at 1 fps". The per-frame
+pass above cannot help: it only runs when a binary cache exists.
+
+R_NewMap runs during the engine's loading plaque, where a one-time wait is
+invisible (chapter loads already measured 32-36 s). Compile the permutation
+list synchronously here, WALL-CLOCK BUDGETED (default 45 s): the budget
+bounds the plaque, whatever is left compiles on first use as before. This
+runs ONCE per session (bPrecompiled gate); no pause commands, no HUD bar.
+========================
+*/
+bool R_PrecompileShadersSync( float budgetSeconds )
+{
+	static bool bSyncDone = false;
+	int compiled = 0, skipped = 0, failed = 0, hashed = 0;
+
+	if( bSyncDone || bPrecompiled )
+		return false;
+
+	// no GLSL at all (renderer gated off) or the per-frame pass owns it
+	// (desktop binary cache) — nothing to do here
+	if( !GL_Support( R_SHADER_GLSL100_EXT ) || GL_Support( R_BINARY_SHADER_EXT ))
+	{
+		bSyncDone = true;
+		return false;
+	}
+
+	auto startTime = std::chrono::steady_clock::now();
+
+	for( int i = 0; i < iTotalShaders; i++ )
+	{
+		shaderlist_t &curshader = shaders[i];
+
+		// same unusable-permutation filter as the per-frame pass: shadow
+		// samplers and texture arrays do not exist on this driver
+		{
+			const bool noShadowPath = tr.shadows_notsupport || !CVAR_TO_BOOL( gl_shadows );
+			const char *def = curshader.defines ? curshader.defines : "";
+
+			if(( noShadowPath && ( Q_strstr( def, "HAS_SHADOWS" ) || Q_strstr( def, "SUN_SHADOW" ))) ||
+				( !GL_Support( R_TEXTURE_ARRAY_EXT ) && Q_strstr( def, "TERRAIN_NUM_LAYERS" )))
+			{
+				skipped++;
+				continue;
+			}
+		}
+
+		if( curshader.glname == NULL )
+			continue; // end of the list
+
+		glsl_program_t *shader = GL_InitGPUShader( curshader.glname, curshader.glname, curshader.glname, curshader.defines );
+
+		if( !shader )
+		{
+			failed++;
+			continue;
+		}
+
+		if( shader->status & SHADER_STATUS_HASHED )
+		{
+			// already compiled at map precache — free win
+			hashed++;
+			continue;
+		}
+
+		// uncompiled: apply the same uniform sets as the per-frame pass
+		if( !Q_stricmp( curshader.glname, "bmodeldecal" ))
+			GL_InitBmodelDecalUniforms( shader );
+		else if( !Q_stricmp( curshader.glname, "bmodeldlight" ))
+			GL_InitBmodelDlightUniforms( shader );
+		else if( !Q_stricmp( curshader.glname, "bmodelsolid" ))
+			GL_InitSolidBmodelUniforms( shader );
+		else if( !Q_stricmp( curshader.glname, "studiodlight" ))
+			GL_InitStudioDlightUniforms( shader );
+		else if( !Q_stricmp( curshader.glname, "studiosolid" ))
+			GL_InitSolidStudioUniforms( shader );
+		else if( !Q_stricmp( curshader.glname, "grassdlight" ))
+			GL_InitGrassDlightUniforms( shader );
+		else if( !Q_stricmp( curshader.glname, "grasssolid" ))
+			GL_InitGrassSolidUniforms( shader );
+		else
+			ALERT( at_aiconsole, "^1R_PrecompileShadersSync: unhandled uniforms for shader %s!^7\n", curshader.glname );
+
+		compiled++;
+
+		float elapsed = std::chrono::duration<float>( std::chrono::steady_clock::now() - startTime ).count();
+		if( elapsed >= budgetSeconds )
+			break; // budget spent — the rest stays lazy
+	}
+
+	float total = std::chrono::duration<float>( std::chrono::steady_clock::now() - startTime ).count();
+
+	// mark the whole pipeline done: the per-frame pass returns immediately,
+	// the HUD bar never appears, mainui unblocks
+	bSyncDone = true;
+	bPrecompiled = true;
+	shaders_processed_total = iTotalShaders - 1;
+	compiled_count_total = compiled + hashed;
+	compiled_failed_total = failed;
+	CVAR_SET_FLOAT( "ui_shadersdone", 1 );
+	gHUD.bShadersCompiled = true;
+
+	Msg( "^2half-D: precompiled %d shaders behind the loading screen in %.1f s^7 (%d already cached, %d skipped as unusable on this driver, %d failed; the rest compile on first use)\n",
+		compiled, total, hashed, skipped, failed );
+
+	return true;
 }
 
 void GL_InitGPUShaders( void )
