@@ -189,6 +189,7 @@ cvar_t *r_decals_ext;
 cvar_t *gl_fsr;
 cvar_t *fps_max;
 cvar_t *gl_mobile_quality;  // half-D: mobile quality preset
+cvar_t *gl_custom_renderer; // half-D: performance mode master switch (0 = engine renderer)
 cvar_t *gl_diag;            // half-D: perf heartbeat
 cvar_t *gl_texture_nearest;
 
@@ -473,6 +474,14 @@ void V_Init( void )
 	// Mobile preset sets it to 0; r_menu_blur 1 restores the blurred-menu look.
 	r_menu_blur = CVAR_REGISTER( "r_menu_blur", "1", FCVAR_ARCHIVE );
 	gl_mobile_quality = CVAR_REGISTER( "gl_mobile_quality", "1", FCVAR_ARCHIVE ); // half-D
+	// half-D v0.7.0: performance mode master switch. Default OFF — on the
+	// target device (Infinix Hot 50 4G, Helio G99 / Mali-G57) the custom
+	// GL2 renderer through gl4es measured at best 11-18 fps in car scenes
+	// (219k-258k epoly, no studioLOD data in the models) with shader-compile
+	// storms of up to 31 s at map load. The engine's native GLES renderer
+	// batches the same geometry and is the upstream-tested mobile path.
+	// gl_custom_renderer 1 + -ref gl4es restores the full shader look.
+	gl_custom_renderer = CVAR_REGISTER( "gl_custom_renderer", "0", FCVAR_ARCHIVE ); // half-D
 	gl_diag = CVAR_REGISTER( "gl_diag", "1", FCVAR_ARCHIVE ); // half-D
 	cl_background = CVAR_GET_POINTER( "cl_background" );
 }

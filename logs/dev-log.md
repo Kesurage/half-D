@@ -773,3 +773,43 @@ GPU-SCENE-BOUND (74.4 of 2041 ms)" during precompile — that bucket
 mislabeled shader compilation as simulation; it disappears with the
 precompile skip. Remaining watch item: dips 1162-2490 on the 1-2M epoly
 menu frames (LOD should collapse these too).
+
+## 2026-11-22 — v0.7.0: Performance Mode — the engine renderer takes the default slot
+
+The v0.6.1 field data (13:58 log + two screenshots) closed the case on the
+gl4es custom-renderer path:
+
+- The 1-2 fps frames were NOT the 219k-epoly scenes — those ran 11-18 fps.
+  The killers were my v0.6.1 precompile skip: it moved the compile storm
+  INTO gameplay (31 s single frame at map load, 9 s mid-game). The 13:58
+  log's spike at "Setting up renderer..." nails it.
+- LOD was a no-op for the heavy scenes: StudioCheckLOD only finds LOD levels
+  in models carrying a "studioLOD" bodypart; the cars/NPCs have none.
+  219k-258k epoly is UNAVOIDABLE in the custom renderer path — it always
+  draws full-detail models.
+- The screenshots show the game rendering largely CORRECTLY through gl4es
+  (menu, chapter select, cars, terrain, dusk sky) — the visible defects are
+  specific magenta/cyan surfaces (texture-format failures on certain map
+  assets) and the missing-data gaps. The renderer was never the problem;
+  the architecture was.
+
+Decision: performance mode as the shipped default. The client's custom
+shader renderer is OFF (gl_custom_renderer 0, registered in V_Init, gate in
+R_Init before any GL call). HUD_RenderFrame's existing contract does the
+rest: return 0 when !g_fRenderInitialized → the ENGINE's ref renders the
+world. This is field-proven on this exact device: v0.5.2 lived in this
+state and the game played. ref_gles3compat is the default ref again
+(native GLES, no per-call translation). ui_shadersdone=1 in the gate so
+mainui never hides the menus. Engine-side: missing sounds report once per
+session (the 1.21 data ships without ~65 referenced files); watchdog
+advice no longer recommends cl_lod for models without studioLOD data.
+
+Full-look mode stays: gl_custom_renderer 1 + -ref gl4es.
+
+Research note (for the rewrite/panvk question): Diffusion = xash3d-fwgs
+engine + a client-side GL 2.1 renderer with GLSL shaders; the author's own
+Android port runs it through gl4es. There is no Vulkan path anywhere in
+the project. panvk (Mesa's Mali Vulkan driver) targets Valhall but is
+experimental; using it would mean writing a new renderer in Vulkan from
+scratch against a moving driver — months of work with worse odds than the
+paths we have already measured. The evidence-backed fast path ships today.

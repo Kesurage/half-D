@@ -803,20 +803,21 @@ qboolean R_Init( void )
 		success = R_LoadRenderer( requested_cmdline, false );
 
 #if XASH_ANDROID
-	// half-D v0.6.0: gl4es is the DEFAULT renderer again. The v0.5.0 bet on
-	// the native GLES3 path (ref_gles3compat + the client's GLSL ES 300
-	// transform) rendered incorrectly on device (black terrain, broken
-	// models, artifacts, 0-4 fps, menu watchdog resets) — the fixed-function
-	// translation cannot reproduce Diffusion's renderer faithfully. gl4es is
-	// the reference configuration (yalnie/Diffusion-Android): correct
-	// visuals, working menus, 5-15 fps with the mobile quality preset.
-	// gles3compat stays the automatic fallback and can be forced with
-	// -ref gles3compat in the launcher arguments.
+	// half-D v0.7.0: ref_gles3compat is the default — PERFORMANCE MODE.
+	// The client's custom shader renderer is now off by default
+	// (gl_custom_renderer 0; see r_opengl.cpp R_Init), so the engine's own
+	// native GLES renderer draws the game: no gl4es per-call translation,
+	// no client shader compiles, upstream-tested batching. v0.6.1 field
+	// data on the target device (Infinix Hot 50 4G, Mali-G57): the gl4es
+	// custom-renderer path peaked at 11-18 fps with 31 s shader storms;
+	// the native engine path is the fast one. gl4es is the automatic
+	// fallback and stays the right choice for the full shader look
+	// (gl_custom_renderer 1 + -ref gl4es in the launcher arguments).
 	if( !success )
 	{
-		success = R_LoadRenderer( "gl4es", false );
+		success = R_LoadRenderer( "gles3compat", false );
 		if( !success )
-			success = R_LoadRenderer( "gles3compat", false );
+			success = R_LoadRenderer( "gl4es", false );
 	}
 #endif
 

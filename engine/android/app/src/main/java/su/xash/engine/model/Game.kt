@@ -100,11 +100,11 @@ class Game(val ctx: Context, val basedir: File, val gameInfoFile: File, previous
 			}
 		}
 
-		// half-D: default to the gl4es renderer — Diffusion's client-side
-		// renderer requires a desktop GL compatibility context and refuses
-		// GLES ones. The engine also hardcodes this fallback (ref_common.c),
-		// so stale saved arguments cannot regress to gles1 either.
-		commandLineArgs += pref.getString("arguments", "-console -log -dev 2 -ref gl4es") ?: ""
+		// half-D v0.7.0: no renderer pin in the default arguments — the
+		// engine's ref_common.c prefers gles3compat (performance mode, the
+		// client's custom shader renderer is off by default) with gl4es as
+		// fallback. Users can still force one via -ref in saved arguments.
+		commandLineArgs += pref.getString("arguments", "-console -log -dev 2") ?: ""
 
 		if (externalGame && packageNames != null) {
 			var packageName: String? = null

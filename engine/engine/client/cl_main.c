@@ -3452,6 +3452,28 @@ static qboolean CL_ShouldRescanFilesystem( void )
 	return retval;
 }
 
+// half-D: report each missing sound once per session. The game data
+// references dozens of files the 1.21 package does not ship (NPC voice
+// sets, footsteps); every map load re-precache'd them and the field log
+// accumulated >100 identical error lines per session.
+static void CL_ReportMissingSound( const char *filename )
+{
+	static char reported[256][64];
+	static int reported_count = 0;
+	int i;
+
+	for( i = 0; i < reported_count; i++ )
+	{
+		if( !Q_strcmp( reported[i], filename ))
+			return;
+	}
+
+	if( reported_count < ARRAYSIZE( reported ))
+		Q_strncpy( reported[reported_count++], filename, sizeof( reported[0] ));
+
+	Con_Printf( S_ERROR "Could not load sound " DEFAULT_SOUNDPATH "%s\n", filename );
+}
+
 qboolean CL_PrecacheResources( void )
 {
 	resource_t	*pRes;
@@ -3516,7 +3538,7 @@ qboolean CL_PrecacheResources( void )
 			{
 				if( FBitSet( pRes->ucFlags, RES_WASMISSING ))
 				{
-					Con_Printf( S_ERROR "Could not load sound " DEFAULT_SOUNDPATH "%s\n", pRes->szFileName );
+					CL_ReportMissingSound( pRes->szFileName );
 					cl.sound_precache[pRes->nIndex][0] = 0;
 					cl.sound_index[pRes->nIndex] = 0;
 				}

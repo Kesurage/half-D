@@ -130,6 +130,7 @@ extern cvar_t *ui_shadersdone;
 extern cvar_t *ui_videooptions_active;
 extern cvar_t *ui_forcenoblur;
 extern cvar_t *gl_mobile_quality; // half-D: mobile quality preset master switch
+extern cvar_t *gl_custom_renderer; // half-D: performance mode master switch (0 = engine renderer draws)
 extern cvar_t *r_menu_blur; // half-D: paused-menu GaussBlur gate (gl4es readback)
 extern cvar_t *cl_background;
 extern cvar_t *hud_fontscale;

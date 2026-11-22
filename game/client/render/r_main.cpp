@@ -2300,7 +2300,11 @@ static void R_DiagFrame( void )
 				else if( r_stats.c_world_polys > r_stats.c_studio_polys * 2 )
 					gEngfuncs.Con_Printf( "perf: [watchdog] verdict: ^1SCENE-BOUND, world geometry^7 (%d wpoly) — advice: gl_mobile_quality 0, r_decals_ext 0\n", (int)r_stats.c_world_polys );
 				else
-					gEngfuncs.Con_Printf( "perf: [watchdog] verdict: ^1SCENE-BOUND, studio models^7 (%d epoly) — advice: cl_lod_enable 1, cl_lod_bias 1\n", (int)r_stats.c_studio_polys );
+					// half-D v0.7.0: LOD only exists on models carrying a
+					// "studioLOD" bodypart — the field log showed the heavy
+					// scenes (cars, 219k-258k epoly) have none, so cl_lod
+					// cannot help them. Point at the real fix instead.
+					gEngfuncs.Con_Printf( "perf: [watchdog] verdict: ^1SCENE-BOUND, studio models^7 (%d epoly) — advice: the engine renderer batches these (gl_custom_renderer 0, the default); cl_lod_enable only helps models with studioLOD data\n", (int)r_stats.c_studio_polys );
 			}
 			else if( diagMsPostfx > diagFrameMs * 0.25f )
 				gEngfuncs.Con_Printf( "perf: [watchdog] verdict: ^1POSTFX-BOUND^7 (%.1f ms) — advice: r_blur_strength 0, gl_mobile_quality 0\n", diagMsPostfx );

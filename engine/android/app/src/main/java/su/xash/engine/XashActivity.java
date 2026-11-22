@@ -270,11 +270,11 @@ public class XashActivity extends SDLActivity {
 		}
 
 		String argv = getIntent().getStringExtra("argv");
-		// half-D v0.6.0: no hardcoded renderer on the command line. The
-		// engine's ref_common.c defaults to gl4es (the reference
-		// configuration — correct visuals, working menus) with gles3compat
-		// as automatic fallback. Users can still force a renderer by
-		// passing -ref gl4es / -ref gles3compat in the launcher arguments.
+		// half-D v0.7.0: no hardcoded renderer on the command line. The
+		// engine's ref_common.c defaults to gles3compat (native GLES — the
+		// performance-mode renderer; the client's custom shader renderer is
+		// off by default, see gl_custom_renderer) with gl4es as fallback for
+		// the full shader look (gl_custom_renderer 1 + -ref gl4es).
 		if (argv == null) argv = "-console -log -dev 2";
 
 		return argv.split(" ");
