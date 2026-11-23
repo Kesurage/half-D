@@ -101,10 +101,12 @@ class Game(val ctx: Context, val basedir: File, val gameInfoFile: File, previous
 		}
 
 		// half-D v0.7.0: no renderer pin in the default arguments — the
-		// engine's ref_common.c picks the ref. half-D v0.8.5: that order
-		// prefers gles3compat (the native ES3 path the launcher now pins
-		// too — gl4es's GLSL translation caused the purple/1 fps states);
-		// gl4es stays forceable via -ref in saved arguments.
+		// engine's ref_common.c picks the ref. half-D v0.8.7: that order
+		// prefers gl4es again (the native gles3compat ref failed every
+		// field test on the device — v0.8.6: all-black textures, because
+		// BC4/BC5/BC6H/BC7 DDS still load as "not found" on native);
+		// the launcher default command line pins -ref gl4es too, and a
+		// user-supplied -ref always wins.
 		commandLineArgs += pref.getString("arguments", "-console -log -dev 2") ?: ""
 
 		if (externalGame && packageNames != null) {

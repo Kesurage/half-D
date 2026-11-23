@@ -803,38 +803,34 @@ qboolean R_Init( void )
 		success = R_LoadRenderer( requested_cmdline, false );
 
 #if XASH_ANDROID
-	// half-D v0.7.1: gl4es is the default — PERFORMANCE MODE runs on it.
-	// v0.7.0 tried the native gles3compat ref and the device log proved
-	// the engine's texture path fails on this game's DDS data under it
-	// (every HUD/world .dds request "not found" — the same failure behind
-	// the v0.5.0 "black terrain"), while the identical requests all
-	// succeed under gl4es (v0.6.1 log, zero HUD texture misses). The
-	// client's custom shader renderer stays off by default
-	// (gl_custom_renderer 0) — that was the measured cost driver, not the
-	// ref. So: engine renderer + gl4es = the proven texture path minus the
-	// client renderer's compile storms and draw-call churn.
-	//
-	// half-D v0.8.5: order flipped — gles3compat first, gl4es fallback.
-	// Both v0.7.1 reasons are gone:
-	//   * the DDS failure is fixed at the source: engine imagelib now CPU-
-	//     decodes DXT1/3/5 when the ref has no hardware S3TC (v0.8.1,
-	//     verified against hand-computed reference blocks), so the native
-	//     ref loads the game's textures.
-	//   * the custom renderer is the default again (gl_diffusion_renderer 1
-	//     since v0.7.3; v0.8.4's engine-renderer default broke the game's
-	//     materials/lights/props) — and under gl4es it was gl4es's own
-	//     GLSL->GLES translation that produced the purple lighting and
-	//     glitched models (v0.8.1-0.8.4 field reports), plus ~460 ms per
-	//     translated compile with no binary cache (the 45 s load phase
-	//     and the 1 fps states). The native ES3 ref compiles the ES300-
-	//     transformed shaders directly on Mali and exposes program
-	//     binaries for caching.
+	// half-D v0.8.7: gl4es is the default again. The v0.8.5 flip to
+	// gles3compat-first was based on a wrong diagnosis and the field
+	// corrected it twice (v0.8.5 artifacts, v0.8.6 all-black/invisible
+	// textures):
+	//   * "gl4es's GLSL translation produced the purple" was wrong. The
+	//     gl4es wrapper is pinned since Phase R and never changed, and
+	//     v0.6.1 through the same gl4es rendered CORRECTLY. The purple
+	//     era (v0.8.0-v0.8.3) was the budgeted/rate-limited compile
+	//     falling back to same-family WRONG shaders on misses (the
+	//     v0.8.1 commit itself calls it "the wrong-permutation family
+	//     fallback (blank textures)") plus 460 ms retries of the 54
+	//     caps-unusable permutations. v0.8.2's negative cache and
+	//     v0.8.5's r_shader_lazy_hz 0 (inline first-use, v0.6.1
+	//     semantics) removed that mechanism at its source.
+	//   * The native ref never passed a field test on this device:
+	//     v0.5.0 garbage textures, v0.7.0 "black terrain" (device log:
+	//     every .dds upload fails under it), v0.8.5 artifacts, v0.8.6
+	//     black. The v0.8.1 CPU decoder covers only DXT1/3/5 — BC4/BC5/
+	//     BC6H/BC7/ATI2 and volume DDS still load as "not found", which
+	//     is exactly the all-black report on v0.8.6.
+	// gl4es loaded every .dds in every build ever fielded. gles3compat
+	// stays opt-in via -ref for future testing WITH telemetry.
 	// A user-supplied `-ref` (priority 1 above) still wins over this.
 	if( !success )
 	{
-		success = R_LoadRenderer( "gles3compat", false );
+		success = R_LoadRenderer( "gl4es", false );
 		if( !success )
-			success = R_LoadRenderer( "gl4es", false );
+			success = R_LoadRenderer( "gles3compat", false );
 	}
 #endif
 

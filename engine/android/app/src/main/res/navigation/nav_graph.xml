@@ -26,9 +26,16 @@
 		<action
 			android:id="@+id/action_appSettingsFragment_to_crashLogsFragment"
 			app:destination="@id/crashLogsFragment" />
+		<action
+			android:id="@+id/action_appSettingsFragment_to_sessionLogsFragment"
+			app:destination="@id/sessionLogsFragment" />
 	</fragment>
 	<fragment
 		android:id="@+id/crashLogsFragment"
 		android:name="su.xash.engine.ui.settings.CrashLogsFragment"
 		android:label="@string/crash_logs" />
+	<fragment
+		android:id="@+id/sessionLogsFragment"
+		android:name="su.xash.engine.ui.settings.SessionLogsFragment"
+		android:label="@string/session_logs" />
 </navigation>

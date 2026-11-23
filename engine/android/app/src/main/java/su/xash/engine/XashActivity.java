@@ -299,17 +299,22 @@ public class XashActivity extends SDLActivity {
 		// gles3compat + custom renderer is the v0.5.0 field configuration:
 		// garbage textures at 0-4 fps — could silently win over new code
 		// defaults. Command line has top priority; this pins the proven ref.
-		// half-D v0.8.5: the pin moves to gles3compat (native ES3). The
-		// v0.5.0 failure of this combo is fixed at its sources: the garbage
-		// textures were the DDS rejection that v0.8.1's CPU DXT decoder
-		// removed, and the 0-4 fps was the v0.5.x compile storm (compiles
-		// are now the budgeted post-load phase; native compiles are ~50x
-		// faster than gl4es's and the ES driver exposes program binaries
-		// for caching). gl4es is what produced the v0.8.1-0.8.4 purple
-		// lighting / glitched models (mistranslated GLSL) and the ~460 ms
-		// compile hitches. Fallback: put "-ref gl4es" in launcher saved
-		// arguments — a user-provided -ref takes priority over this default.
-		if (argv == null) argv = "-console -log -dev 2 -ref gles3compat";
+		// half-D v0.8.5 moved the pin to gles3compat (native ES3); the v0.8.6
+		// field report corrected it: ALL-BLACK/invisible textures, still bad
+		// fps — the native ref's fourth field failure on this device
+		// (v0.5.0 garbage, v0.7.0 black terrain, v0.8.5 artifacts, v0.8.6
+		// black). The v0.8.1 CPU DXT decoder covers only DXT1/3/5; BC4/BC5/
+		// BC6H/BC7/ATI2 DDS still load as "not found" on native — that is
+		// the black textures. And the purple that drove the v0.8.5 switch
+		// was never gl4es translation: the wrapper is pinned and unchanged
+		// since Phase R, and v0.6.1 through the same gl4es rendered
+		// CORRECTLY. The purple was v0.8.0-v0.8.3's budgeted compile
+		// falling back to wrong same-family shaders on misses — removed by
+		// v0.8.2's negative cache and v0.8.5's r_shader_lazy_hz 0 (inline
+		// first-use, the v0.6.1 semantics). So v0.8.7 pins gl4es again.
+		// Fallback: put "-ref gles3compat" in launcher saved arguments — a
+		// user-provided -ref takes priority over this default.
+		if (argv == null) argv = "-console -log -dev 2 -ref gl4es";
 
 		return argv.split(" ");
 	}

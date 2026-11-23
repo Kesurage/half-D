@@ -61,6 +61,11 @@ class AppSettingsPreferenceFragment() : PreferenceFragmentCompat() {
 		}
 		updateGamePathPreference()
 
+		findPreference<Preference>("session_logs")?.setOnPreferenceClickListener {
+			findNavController().navigate(R.id.action_appSettingsFragment_to_sessionLogsFragment)
+			true
+		}
+
 		findPreference<Preference>("crash_logs")?.setOnPreferenceClickListener {
 			findNavController().navigate(R.id.action_appSettingsFragment_to_crashLogsFragment)
 			true
