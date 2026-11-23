@@ -712,7 +712,7 @@ bool CStudioModelRenderer::CheckBoneCache( float f )
 				if( cSelfRefLogged < 16 )
 				{
 					cSelfRefLogged++;
-					ConPrintf( "^2half-D v0.8.9:^7 self-reflection guard: model at (%.0f %.0f %.0f) overlaps its cubemap box - studio reflection disabled\n",
+					ConPrintf( "^2half-D v0.8.10:^7 self-reflection guard: model at (%.0f %.0f %.0f) overlaps its cubemap box - studio reflection disabled\n",
 						pos.x, pos.y, pos.z );
 				}
 
@@ -6790,11 +6790,32 @@ void CStudioModelRenderer::DrawStudioMeshes( void )
 			if( !already_logged && logged_reflect_count < 32 )
 			{
 				logged_reflect_tex[logged_reflect_count++] = iTexnum;
-				ConPrintf( "^2half-D v0.8.9:^7 studio reflective mesh: material=%s chrome=%s cubemap=%s reflect=%.2f/%.2f\n",
+
+				// half-D v0.8.10: name the unit-0 bind decision for this mesh
+				// (mirrors the chain below) - the glass still draws wrong on
+				// the field device and the next log must say which texture
+				// path supplies it.
+				const char *bindpath = "diffuse";
+
+				if( r_lightmap->value && !r_fullbright->value )
+					bindpath = "lightmap";
+				else if( FBitSet( mat->flags, STUDIO_NF_COLORMAP ))
+					bindpath = "colormap";
+				else if(( m_pCurrentEntity->curstate.iuser3 == -670 ) && tr.materials[iTexnum].monitor && tr.studio_screen_tex[m_pCurrentEntity->index] )
+					bindpath = "monitor";
+				else if( tr.materials[iTexnum].gl_fallbacktex_id > 0 )
+					bindpath = "fallback";
+				else if( iTexnum != tr.defaultTexture && tr.materials[iTexnum].animation_id >= 0 )
+					bindpath = "animation";
+				else if( tr.materials[iTexnum].drone_view )
+					bindpath = "drone";
+
+				ConPrintf( "^2half-D v0.8.10:^7 studio reflective mesh: material=%s chrome=%s cubemap=%s reflect=%.2f/%.2f bind=%s\n",
 					tr.materials[iTexnum].name,
 					FBitSet( mat->flags, STUDIO_NF_CHROME ) ? "yes" : "no",
 					( m_pModelInstance->cubemap != NULL ) ? "yes" : "no",
-					tr.materials[iTexnum].ReflectScale[0], tr.materials[iTexnum].ReflectScale[1] );
+					tr.materials[iTexnum].ReflectScale[0], tr.materials[iTexnum].ReflectScale[1],
+					bindpath );
 			}
 		}
 

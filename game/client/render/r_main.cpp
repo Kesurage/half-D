@@ -2223,7 +2223,7 @@ extern cvar_t *gl_diag;  // half-D: registered in view.cpp
 
 // half-D: per-stage frame timing, accumulated in HUD_RenderFrame and
 // reported as averages by the perf heartbeat window
-static float r_diag_ms_cubemaps = 0, r_diag_ms_animatex = 0;
+static float r_diag_ms_cubemaps = 0, r_diag_ms_animatex = 0, r_diag_ms_shphase = 0;
 static float r_diag_ms_scene = 0, r_diag_ms_postfx = 0;
 
 // half-D: performance heartbeat — every 5 s of rendered frames, log fps,
@@ -2272,7 +2272,7 @@ static void R_DiagFrame( void )
 		int iScreenPasses = (int)r_stats.c_screen_passes;
 		int iOtherPasses = (int)r_stats.num_passes - iMirrorPasses - iPortalPasses - iScreenPasses;
 
-		gEngfuncs.Con_Printf( "perf: ^2%.1f fps^7 | frame avg %.1f ms, worst %.0f ms | wpoly %d epoly %d spoly %d grass %d | dips %d passes %d (mirror %d portal %d screen %d other %d) binds %d | shaddefer %d/%d | stage ms: scene %.0f postfx %.0f anim %.1f cube %.1f\n",
+		gEngfuncs.Con_Printf( "perf: ^2%.1f fps^7 | frame avg %.1f ms, worst %.0f ms | wpoly %d epoly %d spoly %d grass %d | dips %d passes %d (mirror %d portal %d screen %d other %d) binds %d | shaddefer %d/%d | stage ms: scene %.0f postfx %.0f anim %.1f shphase %.0f cube %.1f\n",
 			windowFrames / windowS, windowS * 1000.0f / windowFrames, worstMs,
 			r_stats.c_world_polys, r_stats.c_studio_polys,
 			r_stats.c_sprite_polys, r_stats.c_grass_polys,
@@ -2281,7 +2281,7 @@ static void R_DiagFrame( void )
 			(int)r_stats.num_shader_binds,
 			R_ShadersPendingCount(), R_ShadersDeferredTotal(),
 			r_diag_ms_scene / windowFrames, r_diag_ms_postfx / windowFrames,
-			r_diag_ms_animatex / windowFrames, r_diag_ms_cubemaps / windowFrames );
+			r_diag_ms_animatex / windowFrames, r_diag_ms_shphase / windowFrames, r_diag_ms_cubemaps / windowFrames );
 
 		// half-D: low-fps watchdog — when the window average drops under
 		// 30 fps, name the dominant cost and what to turn down. Captured
@@ -2293,14 +2293,15 @@ static void R_DiagFrame( void )
 		float diagMsPostfx = r_diag_ms_postfx / windowFrames;
 		float diagMsAnim = r_diag_ms_animatex / windowFrames;
 		float diagMsCube = r_diag_ms_cubemaps / windowFrames;
+		float diagMsShphase = r_diag_ms_shphase / windowFrames;
 		float diagDips = (float)r_stats.dip_count;
 		float diagBinds = (float)r_stats.num_shader_binds;
 		float diagPolysPerDip = diagDips > 0 ? ( r_stats.c_world_polys + r_stats.c_studio_polys + r_stats.c_sprite_polys ) / diagDips : 0;
 
 		if( diagFps < 30.0f )
 		{
-			gEngfuncs.Con_Printf( "perf: ^1[watchdog] %.1f fps < 30^7 | frame %.1f ms | scene %.1f postfx %.1f animtex %.1f cubemap %.1f | dips %d binds %d polys/dip %.0f\n",
-				diagFps, diagFrameMs, diagMsScene, diagMsPostfx, diagMsAnim, diagMsCube,
+			gEngfuncs.Con_Printf( "perf: ^1[watchdog] %.1f fps < 30^7 | frame %.1f ms | scene %.1f postfx %.1f animtex %.1f shphase %.1f cubemap %.1f | dips %d binds %d polys/dip %.0f\n",
+				diagFps, diagFrameMs, diagMsScene, diagMsPostfx, diagMsAnim, diagMsShphase, diagMsCube,
 				(int)diagDips, (int)diagBinds, diagPolysPerDip );
 
 			// half-D v0.8.2: deferred shader compiles happen INSIDE the scene
@@ -2344,7 +2345,7 @@ static void R_DiagFrame( void )
 		}
 
 		r_diag_ms_scene = r_diag_ms_postfx = 0;
-		r_diag_ms_animatex = r_diag_ms_cubemaps = 0;
+		r_diag_ms_animatex = r_diag_ms_cubemaps = r_diag_ms_shphase = 0;
 		windowFrames = 0;
 		worstMs = 0.0f;
 		windowStart = now;
@@ -2410,10 +2411,13 @@ int HUD_RenderFrame( const ref_viewpass_t *rvp )
 	else
 		R_ShadersFrameStart( false );
 
+	auto diagT1 = std::chrono::steady_clock::now();
+	r_diag_ms_shphase += std::chrono::duration<float>( diagT1 - diagT0 ).count() * 1000.0f;
+
 	GL_LoadAndRebuildCubemaps( RI->params );  // diffusioncubemaps
 
-	auto diagT1 = std::chrono::steady_clock::now();
-	r_diag_ms_cubemaps += std::chrono::duration<float>( diagT1 - diagT0 ).count() * 1000.0f;
+	auto diagT2 = std::chrono::steady_clock::now();
+	r_diag_ms_cubemaps += std::chrono::duration<float>( diagT2 - diagT1 ).count() * 1000.0f;
 
 	tr.fCustomRendering = true;
 	tr.realframecount++;

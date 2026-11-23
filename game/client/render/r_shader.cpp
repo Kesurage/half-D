@@ -107,6 +107,21 @@ static byte *GL_ReadRawFile( const char *path, int *size )
 	return buf;
 }
 
+// half-D v0.8.10: cache instrumentation - the v0.8.9 field log showed the
+// phase still costing ~7 min with 401/714 binaries on disk; these numbers
+// name where the time goes (binary loads vs compiles vs on-disk skips).
+int g_iHalfDBinLoaded = 0;
+float g_flHalfDBinLoadMs = 0.0f;
+int g_iHalfDSyncOnDisk = 0;
+
+static bool GL_ReadRawFileExists( const char *path )
+{
+	FILE *f = fopen( path, "rb" );
+	if( !f ) return false;
+	fclose( f );
+	return true;
+}
+
 static byte *GL_ShaderCacheRead( const char *filename, int *filesize )
 {
 	if( GL_ShaderCacheIsPrivate())
@@ -239,7 +254,7 @@ void GL_EncodeNormal( char *options, int texturenum )
 		if( !bAlreadyLogged )
 		{
 			s_iNormLoggedTex[s_iNormLoggedCount++] = texturenum;
-			Msg( "^2half-D v0.8.9:^7 normal decode: texnum=%d glformat=0x%x\n",
+			Msg( "^2half-D v0.8.10:^7 normal decode: texnum=%d glformat=0x%x\n",
 				texturenum, (unsigned int)RENDER_GET_PARM( PARM_TEX_GLFORMAT, texturenum ));
 		}
 	}
@@ -963,6 +978,7 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 
 		int filesize;
 		byte *data = GL_ShaderCacheRead( filename, &filesize );
+		const auto halfDBinT0 = std::chrono::steady_clock::now();
 
 		if( data )
 		{
@@ -997,6 +1013,8 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 						shader->nextHash = NULL;
 
 						ALERT( at_aiconsole, "\n^2Loaded shader binary:^7 %s\n", filename );
+						g_iHalfDBinLoaded++;
+						g_flHalfDBinLoadMs += std::chrono::duration<float>( std::chrono::steady_clock::now() - halfDBinT0 ).count() * 1000.0f;
 
 						GL_ShaderCacheFree( data );
 
@@ -1193,6 +1211,7 @@ static glsl_program_t *GL_CreateUberShader( GLuint slot, const char *glname, con
 
 		int filesize;
 		byte *data = GL_ShaderCacheRead( filename, &filesize );
+		const auto halfDBinT0 = std::chrono::steady_clock::now();
 
 		if( data && filesize > sizeof( GLuint ) )
 		{
@@ -1231,6 +1250,8 @@ static glsl_program_t *GL_CreateUberShader( GLuint slot, const char *glname, con
 
 					GL_ShaderCacheFree( data );
 					ALERT( at_aiconsole, "\n^2GL_CreateUberShader: Loaded shader binary:^7 %s\n", filename );
+					g_iHalfDBinLoaded++;
+					g_flHalfDBinLoadMs += std::chrono::duration<float>( std::chrono::steady_clock::now() - halfDBinT0 ).count() * 1000.0f;
 
 					if( slot == num_glsl_programs )
 					{
@@ -3759,6 +3780,23 @@ void R_ShaderLoadPhaseStep( float frameBudgetSeconds )
 		if( curshader.glname == NULL )
 			continue; // end of the list
 
+		// half-D v0.8.10: a permutation whose binary is already on disk is
+		// skipped entirely - glProgramBinary measured ~0.4-0.6 s on the field
+		// driver, so re-loading the whole list every launch was the phase's
+		// remaining cost. First use loads it lazily; uniforms initialize on
+		// that path (pfnInitUniforms), as v0.8.8's 52 hashed shaders proved.
+		if( GL_ShaderCacheIsPrivate() )
+		{
+			char halfDCacheName[256];
+			GL_GetShaderCacheFilename( curshader.glname, curshader.defines ? curshader.defines : "", halfDCacheName, sizeof( halfDCacheName ));
+
+			if( GL_ReadRawFileExists( halfDCacheName ))
+			{
+				g_iHalfDSyncOnDisk++;
+				continue;
+			}
+		}
+
 		glsl_program_t *shader = GL_InitGPUShader( curshader.glname, curshader.glname, curshader.glname, curshader.defines );
 
 		if( !shader )
@@ -3803,7 +3841,12 @@ void R_ShaderLoadPhaseStep( float frameBudgetSeconds )
 	CVAR_SET_FLOAT( "ui_shadersdone", 1 );
 	gHUD.bShadersCompiled = true;
 
-	Msg( "^2half-D v0.8.9: precompiled %d shaders in the per-frame load phase^7 (%d already cached, %d skipped as unusable on this driver, %d failed)\n",
+	Msg( "^2half-D v0.8.10:^7 load phase: %d on-disk skipped, %d compiled, %d in-session | binary cache this session: %d loads in %.1f s (avg %.0f ms)\n",
+		g_iHalfDSyncOnDisk, g_iSyncCompiled, g_iSyncHashed,
+		g_iHalfDBinLoaded, g_flHalfDBinLoadMs / 1000.0f,
+		g_iHalfDBinLoaded ? g_flHalfDBinLoadMs / g_iHalfDBinLoaded : 0.0f );
+
+	Msg( "^2half-D v0.8.10: precompiled %d shaders in the per-frame load phase^7 (%d already cached, %d skipped as unusable on this driver, %d failed)\n",
 		g_iSyncCompiled + g_iSyncHashed, g_iSyncHashed, g_iSyncSkipped, g_iSyncFailed );
 }
 

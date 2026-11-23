@@ -146,7 +146,7 @@ void Sys_InitLog( void )
 				if( s_ld.logfile )
 				{
 					const int saved_errno = errno;
-					fprintf( s_ld.logfile, "half-D v0.8.9: the game-folder log could not be written (%s) - this log lives in the app's private dir\n", strerror( saved_errno ));
+					fprintf( s_ld.logfile, "half-D v0.8.10: the game-folder log could not be written (%s) - this log lives in the app's private dir\n", strerror( saved_errno ));
 				}
 			}
 		}
