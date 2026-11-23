@@ -55,6 +55,29 @@ class MainActivity : AppCompatActivity() {
 		checkForEngineUpdate()
 	}
 
+	// half-D v0.8.8: when the player comes back from the game, offer the
+	// session's real log in one tap. Five field reports in a row carried a
+	// fossil engine.log; asking at the moment the session ends is the only
+	// reliable way to get the fresh file.
+	override fun onResume() {
+		super.onResume()
+		offerSessionLogShare()
+	}
+
+	private fun offerSessionLogShare() {
+		val prefs = getSharedPreferences("halfd_session", Context.MODE_PRIVATE)
+		if (!prefs.getBoolean("offer_log", false)) return
+		prefs.edit().putBoolean("offer_log", false).apply()
+		val live = SessionLog.liveEngineLog(this) ?: return
+		val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+		MaterialAlertDialogBuilder(this)
+			.setTitle(R.string.session_offer_title)
+			.setMessage(getString(R.string.session_offer_message, fmt.format(Date(live.lastModified()))))
+			.setPositiveButton(R.string.crash_share) { _, _ -> SessionLog.shareFiles(this, live) }
+			.setNegativeButton(R.string.session_offer_later, null)
+			.show()
+	}
+
 	private fun checkForEngineUpdate() {
 		val prefs = getSharedPreferences(UPDATE_PREFS, Context.MODE_PRIVATE)
 		val now = System.currentTimeMillis()

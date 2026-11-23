@@ -52,6 +52,9 @@
 	<string name="session_logs">Session logs</string>
 	<string name="session_logs_empty">No engine.log in the game folder yet — launch the game once, then come back</string>
 	<string name="session_log_live">engine.log — current/last session (share this one)</string>
+	<string name="session_offer_title">Share this session\'s log?</string>
+	<string name="session_offer_message">The game just closed. Its log (last written %1$s) is needed to diagnose the rendering and speed problems. Share it with the developer.</string>
+	<string name="session_offer_later">Not now</string>
 	<string name="downloading_game_libs">Downloading Game Libraries</string>
 	<string name="downloading">Downloading…</string>
 	<string name="download_progress">Downloading… %1$s / %2$s</string>

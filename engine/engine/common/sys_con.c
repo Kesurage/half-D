@@ -126,6 +126,31 @@ void Sys_InitLog( void )
 		if( !s_ld.logfile )
 			s_ld.logfile = fopen( s_ld.log_path, mode );
 
+		// half-D v0.8.8: last-resort fallback. When the game folder is not
+		// writable (scoped storage, revoked "all files access" ...) both
+		// opens above fail and the engine ran with NO log at all: the
+		// error went to the console, i.e. into the log that could not be
+		// created. Five field reports in a row carried the same fossil
+		// engine.log from the last build that could still write there.
+		// The launcher points HALFD_LOGDIR at its private files dir.
+		if( !s_ld.logfile )
+		{
+			const char *logdir = getenv( "HALFD_LOGDIR" );
+
+			if( !COM_StringEmptyOrNULL( logdir ) && logdir[0] == '/' )
+			{
+				char fullpath[MAX_SYSPATH];
+				Q_snprintf( fullpath, sizeof( fullpath ), "%s/%s", logdir, s_ld.log_path );
+				s_ld.logfile = fopen( fullpath, mode );
+
+				if( s_ld.logfile )
+				{
+					const int saved_errno = errno;
+					fprintf( s_ld.logfile, "half-D v0.8.8: the game-folder log could not be written (%s) - this log lives in the app's private dir\n", strerror( saved_errno ));
+				}
+			}
+		}
+
 		if ( !s_ld.logfile )
 		{
 			Con_Reportf( S_ERROR "%s: can't create log file %s: %s\n", __func__, s_ld.log_path, strerror( errno ));

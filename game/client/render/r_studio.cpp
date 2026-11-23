@@ -6741,6 +6741,35 @@ void CStudioModelRenderer::DrawStudioMeshes( void )
 			}
 		}
 
+		// half-D v0.8.8: name the shader path behind reflective-looking studio
+		// meshes (chrome UVs vs cubemap reflection), once per texture, so the
+		// device log says which one draws e.g. the menu car's windows.
+		if( tr.realframecount < 900 && ( FBitSet( mat->flags, STUDIO_NF_CHROME ) || FBitSet( RI->currentshader->status, SHADER_USE_CUBEMAPS )))
+		{
+			static int logged_reflect_tex[32];
+			static int logged_reflect_count = 0;
+			qboolean already_logged = false;
+
+			for( int i = 0; i < logged_reflect_count; i++ )
+			{
+				if( logged_reflect_tex[i] == iTexnum )
+				{
+					already_logged = true;
+					break;
+				}
+			}
+
+			if( !already_logged && logged_reflect_count < 32 )
+			{
+				logged_reflect_tex[logged_reflect_count++] = iTexnum;
+				ConPrintf( "^2half-D v0.8.8:^7 studio reflective mesh: material=%s chrome=%s cubemap=%s reflect=%.2f/%.2f\n",
+					tr.materials[iTexnum].name,
+					FBitSet( mat->flags, STUDIO_NF_CHROME ) ? "yes" : "no",
+					( m_pModelInstance->cubemap != NULL ) ? "yes" : "no",
+					tr.materials[iTexnum].ReflectScale[0], tr.materials[iTexnum].ReflectScale[1] );
+			}
+		}
+
 		r_stats.c_studio_polys += (pMesh->numElems / 3);
 		DrawMeshFromBuffer( pMesh );
 	}

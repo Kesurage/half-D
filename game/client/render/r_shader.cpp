@@ -3656,7 +3656,7 @@ void R_ShaderLoadPhaseStep( float frameBudgetSeconds )
 	CVAR_SET_FLOAT( "ui_shadersdone", 1 );
 	gHUD.bShadersCompiled = true;
 
-	Msg( "^2half-D v0.8.7: precompiled %d shaders in the per-frame load phase^7 (%d already cached, %d skipped as unusable on this driver, %d failed)\n",
+	Msg( "^2half-D v0.8.8: precompiled %d shaders in the per-frame load phase^7 (%d already cached, %d skipped as unusable on this driver, %d failed)\n",
 		g_iSyncCompiled + g_iSyncHashed, g_iSyncHashed, g_iSyncSkipped, g_iSyncFailed );
 }
 

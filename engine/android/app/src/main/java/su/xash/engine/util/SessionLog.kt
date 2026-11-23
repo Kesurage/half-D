@@ -76,4 +76,62 @@ object SessionLog {
 				Log.w(TAG, "could not prune ${oldest.path}")
 		}
 	}
+
+	// half-D v0.8.8: the engine's LIVE log, wherever it really is. The
+	// game-folder copy stopped being written after v0.8.1 on the field
+	// device (the engine's fopen there fails silently), so a fixed path
+	// returned a fossil five reports in a row. Candidates: the game folder
+	// (the normal location), the app's private files dir (the engine's
+	// v0.8.8 fallback, HALFD_LOGDIR) and the extracted gamelibs dir.
+	@JvmStatic
+	fun liveEngineLog(ctx: Context): File? {
+		val name = CrashReports.ENGINELOG_NAME
+		val candidates = listOf(
+			File(Prefs.getGamePath(ctx), name),
+			File(ctx.filesDir, name),
+			File(File(ctx.filesDir, "gamelibs"), name),
+		)
+		return candidates.filter { it.isFile && it.length() > 0L }.maxByOrNull { it.lastModified() }
+	}
+
+	// Zip the given files (a directory is added recursively) plus a fresh
+	// logcat snapshot, then open the system share sheet. Never throws.
+	@JvmStatic
+	fun shareFiles(ctx: Context, vararg files: File) {
+		try {
+			val zipDir = File(ctx.cacheDir, "sessions").apply { mkdirs() }
+			val zip = File(zipDir, "halfD-logs-${stamp.format(Date())}.zip")
+			java.util.zip.ZipOutputStream(java.io.BufferedOutputStream(java.io.FileOutputStream(zip))).use { zos ->
+				for (f in files) {
+					if (f.isFile) {
+						addEntry(zos, f.name, f)
+					} else {
+						f.walkTopDown().filter { it.isFile }.forEach {
+							addEntry(zos, "${f.name}/${it.relativeTo(f).path}", it)
+						}
+					}
+				}
+				val lc = File(zipDir, "logcat.txt")
+				if (dumpLogcat(lc)) addEntry(zos, "logcat.txt", lc)
+				lc.delete()
+			}
+			val authority = "${su.xash.engine.BuildConfig.APPLICATION_ID}.fileprovider"
+			val uri = androidx.core.content.FileProvider.getUriForFile(ctx, authority, zip)
+			val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+				type = "application/zip"
+				putExtra(android.content.Intent.EXTRA_SUBJECT, "half-D logs")
+				putExtra(android.content.Intent.EXTRA_STREAM, uri)
+				addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+			}
+			ctx.startActivity(android.content.Intent.createChooser(intent, ctx.getString(su.xash.engine.R.string.crash_share)))
+		} catch (e: Exception) {
+			Log.w(TAG, "share failed: ${e.message}")
+		}
+	}
+
+	private fun addEntry(zos: java.util.zip.ZipOutputStream, name: String, f: File) {
+		zos.putNextEntry(java.util.zip.ZipEntry(name))
+		f.inputStream().use { it.copyTo(zos) }
+		zos.closeEntry()
+	}
 }

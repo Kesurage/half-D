@@ -49,8 +49,10 @@ class SessionLogsFragment : PreferenceFragmentCompat() {
 
 		// The live engine.log is the one that matters: it is the most
 		// recent session, crash or clean, until the next launch.
-		val live = File(Prefs.getGamePath(ctx), "engine.log")
-		if (!live.isFile || live.length() == 0L) {
+		// half-D v0.8.8: newest of the known locations (the game-folder copy
+		// can be a fossil when the engine cannot write there).
+		val live = SessionLog.liveEngineLog(ctx)
+		if (live == null) {
 			preferenceScreen.addPreference(Preference(ctx).apply {
 				setTitle(R.string.session_logs_empty)
 				isSelectable = false
@@ -60,7 +62,8 @@ class SessionLogsFragment : PreferenceFragmentCompat() {
 
 		preferenceScreen.addPreference(Preference(ctx).apply {
 			title = getString(R.string.session_log_live)
-			summary = fmt.format(Date(live.lastModified()))
+			// date AND path, so a stale file is recognisable at a glance
+			summary = fmt.format(Date(live.lastModified())) + "\n" + live.absolutePath
 			setOnPreferenceClickListener {
 				showShareDialog(live, null)
 				true

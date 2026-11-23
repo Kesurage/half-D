@@ -93,7 +93,15 @@ public class XashActivity extends SDLActivity {
 		// also dumps it on the launch after a crash, but a clean session
 		// archive keeps every run inspectable and shareable.
 		try {
-			SessionLog.archiveSession(this, new File(Prefs.getGamePath(this), "engine.log"));
+			// half-D v0.8.8: take the NEWEST engine.log. The game-folder copy
+			// stopped being written after v0.8.1 on the field device (the
+			// engine's fopen there fails silently), so a fixed path hands
+			// back a fossil. liveEngineLog picks the newest of the known
+			// locations, incl. the app-private fallback dir (HALFD_LOGDIR).
+			SessionLog.archiveSession(this, SessionLog.liveEngineLog(this));
+			// offer to share it when the launcher comes back to the front
+			getSharedPreferences("halfd_session", MODE_PRIVATE)
+				.edit().putBoolean("offer_log", true).apply();
 		} catch (Throwable t) {
 			Log.w(TAG, "session log archive failed: " + t);
 		}
@@ -275,6 +283,9 @@ public class XashActivity extends SDLActivity {
 			basedir = Prefs.getGamePath(this).getAbsolutePath();
 		}
 		nativeSetenv("XASH3D_BASEDIR", basedir);
+		// half-D v0.8.8: the engine falls back to this always-writable dir for
+		// engine.log when the game folder cannot be written (sys_con.c).
+		nativeSetenv("HALFD_LOGDIR", getFilesDir().getAbsolutePath());
 
 		mUseVolumeKeys = getIntent().getBooleanExtra("usevolume", false);
 		mPackageName = getIntent().getStringExtra("package");
