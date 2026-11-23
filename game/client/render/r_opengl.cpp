@@ -617,20 +617,23 @@ static const dllfunc_t binaryshaderfuncs[] =
 {
 { "glProgramBinary"              , (void **)&pglProgramBinaryARB },
 { "glGetProgramBinary"           , (void **)&pglGetProgramBinaryARB },
-{ "glProgramParameteri"          , (void **)&pglProgramParameteriARB },
-{ "glProgramParameteriARB"       , (void **)&pglProgramParameteriARB },
 { NULL, NULL }
 };
-// half-D v0.4.4 REVERT of the v0.4.0 change: the table must keep requiring
-// glProgramParameteri(ARB) so the binary shader disk cache stays DISABLED on
-// gl4es. Loading programs with glProgramBinary creates GL programs with no
-// tracked shader sources, and gl4es's fpe_CustomShader then dereferences
-// program->last_vert->source (NULL) on the first fixed-function state change
-// — the 02:04 device crash, SEGV at 0x20 in fpe.c:468 (Mali-G57). The
-// original table also had a copy-paste bug (glProgramParameteri was stored
-// into pglGetProgramivARB); both entries now fill the correct pointer, so
-// desktop GL keeps the cache while gl4es (no hint setter) falls back to
-// compiling everything from source — same as the reference Android port.
+// half-D v0.8.9 RE-ENABLE for gl4es. The v0.4.4 disable existed because a
+// binary-loaded program has no tracked shader sources and gl4es's
+// fpe_CustomShader crashed reading them (SEGV at 0x20 in fpe.c, Mali-G57).
+// That crash is now guarded in our gl4es fork (source-less programs are
+// returned uncustomized), and matrices keep working for such programs:
+// gl4es_useProgramBinary -> fill_program discovers the injected _gl4es_*
+// matrix uniforms of the linked program BY NAME, and fpe.c pushes MVP
+// through those locations on every draw. The hint setter glProgramParameteri
+// was never exported by gl4es; it is optional per spec and every use is
+// null-checked, so the table no longer requires it. GL_InitGPUShader also
+// rejects any cached binary that does not expose _gl4es_ModelViewProjection-
+// Matrix, and the whole cache stays switchable off via gl_binaryshader 0.
+// The payoff is the v0.8.8 field log's #1 cost: 714 permutations at ~450 ms
+// each recompiled on EVERY launch (5.5 min of 1-2 fps plus a 30 s map-load
+// freeze) now persist as program binaries in the app-private cache dir.
 
 #ifndef CALLBACK
 #define CALLBACK
@@ -1356,7 +1359,7 @@ bool R_Init( void )
 		g_fRenderInitialized = false;
 		CVAR_SET_FLOAT( "gl_renderer", 0 );
 		CVAR_SET_FLOAT( "ui_shadersdone", 1 ); // mainui hides every menu until this is 1
-		ConPrintf( "^3half-D v0.8.8 performance mode:^7 the game's custom shader renderer is disabled; the engine renderer draws the game (this game needs the custom renderer — expect missing materials/lights).\n" );
+		ConPrintf( "^3half-D v0.8.9 performance mode:^7 the game's custom shader renderer is disabled; the engine renderer draws the game (this game needs the custom renderer — expect missing materials/lights).\n" );
 		ConPrintf( "^3half-D:^7 full shader look: set gl_diffusion_renderer 1.\n" );
 		return false;
 	}
@@ -1399,11 +1402,11 @@ bool R_Init( void )
 		// half-D v0.8.5: renderer label no longer hardcodes "(gl4es)" —
 		// the ref is already printed first (v0.8.5 defaults to gles3compat,
 		// the native ES3 path); es_context=yes on it is EXPECTED, not a bug.
-		ConPrintf( "^2half-D v0.8.8:^7 ref=%s renderer=custom es_context=%s binary_shader_cache=%s compile=%s\n",
+		ConPrintf( "^2half-D v0.8.9:^7 ref=%s renderer=custom es_context=%s binary_shader_cache=%s compile=%s\n",
 		CVAR_GET_STRING( "r_refdll_loaded" ),
 		glConfig.es_context ? "yes" : "no",
 		GL_Support( R_BINARY_SHADER_EXT ) ? "yes" : "no",
-		GL_Support( R_BINARY_SHADER_EXT ) ? "precompile-pass" : "post-load-phase+first-use-inline(r_shader_lazy_hz 0)" );
+		GL_Support( R_BINARY_SHADER_EXT ) ? "binary-cache+load-phase" : "post-load-phase+first-use-inline(r_shader_lazy_hz 0)" );
 
 	return true;
 }

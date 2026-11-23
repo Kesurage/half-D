@@ -58,6 +58,88 @@ static const char *GL_GetDriverString( void )
 
 #define SHADER_CACHE_REVISION 1 // bump this number when you edit a shared #include file in glsl folder
 
+
+// half-D v0.8.9 ── app-private shader cache ────────────────────────────────
+// The v0.8.8 field session proved the game folder is not writable by the
+// engine on the field device (engine.log needed the HALFD_LOGDIR fallback),
+// so the binary cache cannot live in ".shadercache/" there: pfnSaveFile
+// targets the game folder and silently fails, and nothing would persist
+// across launches. When the launcher sets HALFD_SHADERCACHE to an absolute
+// app-private dir (version-scoped by app version, so an update starts
+// cold), the cache goes there with plain stdio - the engine FS search path
+// does not include that dir.
+static const char *g_pHalfDShaderCacheDir = NULL;
+
+static bool GL_ShaderCacheIsPrivate( void )
+{
+	if( !g_pHalfDShaderCacheDir )
+		g_pHalfDShaderCacheDir = getenv( "HALFD_SHADERCACHE" );
+
+	return ( g_pHalfDShaderCacheDir && g_pHalfDShaderCacheDir[0] == '/' );
+}
+
+static byte *GL_ReadRawFile( const char *path, int *size )
+{
+	FILE *f = fopen( path, "rb" );
+	if( !f ) return NULL;
+
+	fseek( f, 0, SEEK_END );
+	const long len = ftell( f );
+	fseek( f, 0, SEEK_SET );
+
+	if( len <= 0 || len > 64 * 1024 * 1024 )
+	{
+		fclose( f );
+		return NULL;
+	}
+
+	byte *buf = (byte *)Mem_Alloc( len );
+
+	if( fread( buf, 1, len, f ) != (size_t)len )
+	{
+		Mem_Free( buf );
+		fclose( f );
+		return NULL;
+	}
+
+	fclose( f );
+	*size = (int)len;
+	return buf;
+}
+
+static byte *GL_ShaderCacheRead( const char *filename, int *filesize )
+{
+	if( GL_ShaderCacheIsPrivate())
+		return GL_ReadRawFile( filename, filesize );
+
+	return (byte *)gEngfuncs.COM_LoadFile( filename, 5, filesize );
+}
+
+static void GL_ShaderCacheFree( byte *data )
+{
+	if( !data ) return;
+
+	if( GL_ShaderCacheIsPrivate())
+		Mem_Free( data );
+	else
+		gEngfuncs.COM_FreeFile( data );
+}
+
+static void GL_ShaderCacheWrite( const char *filename, const byte *data, int size )
+{
+	if( GL_ShaderCacheIsPrivate())
+	{
+		FILE *f = fopen( filename, "wb" );
+		if( !f ) return;
+		fwrite( data, 1, size, f );
+		fclose( f );
+		return;
+	}
+
+	gRenderfuncs.pfnSaveFile( filename, data, size );
+}
+
+
 static char *GL_GetShaderCacheFilename( const char *glname, const char *options, char *filename, size_t size )
 {
 	const char *driver = GL_GetDriverString();
@@ -87,12 +169,22 @@ static char *GL_GetShaderCacheFilename( const char *glname, const char *options,
 	CRC32_ProcessBuffer( &crc, driver, Q_strlen( driver ) );
 	crc = CRC32_Final( crc );
 
-	Q_snprintf( filename, size, ".shadercache/%08x.bin", crc );
+	if( GL_ShaderCacheIsPrivate())
+		Q_snprintf( filename, size, "%s/%08x.bin", g_pHalfDShaderCacheDir, crc );
+	else
+		Q_snprintf( filename, size, ".shadercache/%08x.bin", crc );
+
 	return filename;
 }
 
 static bool GL_IsSourceNewerThanCache( const char *vpname, const char *fpname, const char *defines, const char *cache_filename )
 {
+	// half-D v0.8.9: the private cache dir is version-scoped by the launcher
+	// - stale entries cannot exist within one APK version, and the engine FS
+	// cannot stat the absolute path anyway.
+	if( GL_ShaderCacheIsPrivate())
+		return false;
+
 	// We need to check both VP and FP if they exist
 	char vp_path[256] = { 0 };
 	char fp_path[256] = { 0 };
@@ -124,6 +216,34 @@ static bool GL_IsSourceNewerThanCache( const char *vpname, const char *fpname, c
 
 void GL_EncodeNormal( char *options, int texturenum )
 {
+	// half-D v0.8.9: the grate floor lights red/magenta on the field device
+	// (v0.8.7 screenshot). The decode is chosen from the GL format the
+	// wrapper reports; log the decision once per texture so the next device
+	// log names the path behind the affected materials.
+	static int s_iNormLoggedTex[32];
+	static int s_iNormLoggedCount = 0;
+
+	if( s_iNormLoggedCount < 32 )
+	{
+		bool bAlreadyLogged = false;
+
+		for( int i = 0; i < s_iNormLoggedCount; i++ )
+		{
+			if( s_iNormLoggedTex[i] == texturenum )
+			{
+				bAlreadyLogged = true;
+				break;
+			}
+		}
+
+		if( !bAlreadyLogged )
+		{
+			s_iNormLoggedTex[s_iNormLoggedCount++] = texturenum;
+			Msg( "^2half-D v0.8.9:^7 normal decode: texnum=%d glformat=0x%x\n",
+				texturenum, (unsigned int)RENDER_GET_PARM( PARM_TEX_GLFORMAT, texturenum ));
+		}
+	}
+
 	if( RENDER_GET_PARM( PARM_TEX_GLFORMAT, texturenum ) == GL_COMPRESSED_RED_GREEN_RGTC2_EXT )
 	{
 		GL_AddShaderDirective( options, "NORMAL_RG_PARABOLOID" );
@@ -842,7 +962,7 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 		GL_GetShaderCacheFilename( glname, defines ? defines : "", filename, sizeof( filename ) );
 
 		int filesize;
-		byte *data = (byte *)gEngfuncs.COM_LoadFile( filename, 5, &filesize );
+		byte *data = GL_ShaderCacheRead( filename, &filesize );
 
 		if( data )
 		{
@@ -859,6 +979,18 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 					GLint linked = 0;
 					pglGetObjectParameterivARB( shader->handle, GL_OBJECT_LINK_STATUS_ARB, &linked );
 
+					// half-D v0.8.9: under gl4es the wrapper feeds matrices via
+					// injected uniforms (fill_program locates them by name on a
+					// binary load, fpe.c pushes MVP through them every draw). A
+					// cached binary that does not expose them cannot receive
+					// matrices - reject it and fall back to a source compile.
+					if( linked && !pglProgramParameteriARB
+						&& pglGetUniformLocationARB( shader->handle, "_gl4es_ModelViewProjectionMatrix" ) == -1 )
+					{
+						ALERT( at_warning, "half-D: cached binary %s has no gl4es matrix uniforms, recompiling\n", filename );
+						linked = 0;
+					}
+
 					if( linked )
 					{
 						shader->status = SHADER_VERTEX_COMPILED | SHADER_FRAGMENT_COMPILED | SHADER_PROGRAM_LINKED | SHADER_STATUS_FROMBINARY;
@@ -866,7 +998,7 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 
 						ALERT( at_aiconsole, "\n^2Loaded shader binary:^7 %s\n", filename );
 
-						gEngfuncs.COM_FreeFile( data );
+						GL_ShaderCacheFree( data );
 
 						// add to hash table
 						shader->nextHash = glsl_programsHashTable[hash];
@@ -889,7 +1021,7 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 				}
 			}
 
-			gEngfuncs.COM_FreeFile( data );
+			GL_ShaderCacheFree( data );
 		}
 	}
 
@@ -983,7 +1115,7 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 			if( ret_len == bin_length )
 			{
 				*(GLuint *)buffer = format;
-				gRenderfuncs.pfnSaveFile( filename, buffer, bin_length + sizeof( GLuint ) );
+				GL_ShaderCacheWrite( filename, buffer, bin_length + sizeof( GLuint ) );
 				ALERT( at_aiconsole, "^2Saved shader cache to:^7 %s (%d bytes)\n", filename, bin_length );
 			}
 			else
@@ -1060,7 +1192,7 @@ static glsl_program_t *GL_CreateUberShader( GLuint slot, const char *glname, con
 		GL_GetShaderCacheFilename( glname, defines, filename, sizeof( filename ) );
 
 		int filesize;
-		byte *data = (byte *)gEngfuncs.COM_LoadFile( filename, 5, &filesize );
+		byte *data = GL_ShaderCacheRead( filename, &filesize );
 
 		if( data && filesize > sizeof( GLuint ) )
 		{
@@ -1076,6 +1208,18 @@ static glsl_program_t *GL_CreateUberShader( GLuint slot, const char *glname, con
 				GLint linked = 0;
 				pglGetObjectParameterivARB( shader->handle, GL_OBJECT_LINK_STATUS_ARB, &linked );
 
+				// half-D v0.8.9: under gl4es the wrapper feeds matrices via
+				// injected uniforms (fill_program locates them by name on a
+				// binary load, fpe.c pushes MVP through them every draw). A
+				// cached binary that does not expose them cannot receive
+				// matrices - reject it and fall back to a source compile.
+				if( linked && !pglProgramParameteriARB
+					&& pglGetUniformLocationARB( shader->handle, "_gl4es_ModelViewProjectionMatrix" ) == -1 )
+				{
+					ALERT( at_warning, "half-D: cached binary %s has no gl4es matrix uniforms, recompiling\n", filename );
+					linked = 0;
+				}
+
 				if( linked )
 				{
 					shader->status = SHADER_VERTEX_COMPILED | SHADER_FRAGMENT_COMPILED | SHADER_PROGRAM_LINKED | SHADER_UBERSHADER | SHADER_STATUS_FROMBINARY;
@@ -1085,7 +1229,7 @@ static glsl_program_t *GL_CreateUberShader( GLuint slot, const char *glname, con
 					if( pfnInitUniforms ) pfnInitUniforms( shader );
 					GL_ShowProgramUniforms( shader );  // If dev mode
 
-					gEngfuncs.COM_FreeFile( data );
+					GL_ShaderCacheFree( data );
 					ALERT( at_aiconsole, "\n^2GL_CreateUberShader: Loaded shader binary:^7 %s\n", filename );
 
 					if( slot == num_glsl_programs )
@@ -1111,7 +1255,7 @@ static glsl_program_t *GL_CreateUberShader( GLuint slot, const char *glname, con
 			else
 				ALERT( at_aiconsole, "^3GL_CreateUberShader Shader binary for %s is outdated and will be recompiled.^7\n", glname );
 
-			gEngfuncs.COM_FreeFile( data );
+			GL_ShaderCacheFree( data );
 		}
 	}
 
@@ -1189,7 +1333,7 @@ static glsl_program_t *GL_CreateUberShader( GLuint slot, const char *glname, con
 			if( ret_len == bin_length )
 			{
 				*(GLuint *)buffer = format;
-				gRenderfuncs.pfnSaveFile( filename, buffer, bin_length + sizeof( GLuint ) );
+				GL_ShaderCacheWrite( filename, buffer, bin_length + sizeof( GLuint ) );
 				ALERT( at_aiconsole, "^2Cached shader binary:^7 %s\n", filename );
 			}
 
@@ -3556,11 +3700,14 @@ static int g_iSyncHashed = 0, g_iSyncCompiled = 0;
 
 void R_ShaderLoadPhaseBegin( void )
 {
-	// once per session, and only the no-binary-cache (gl4es) path needs it
+	// once per session. half-D v0.8.9: with the binary cache re-enabled this
+	// phase is no longer skipped - on a warm cache it just loads saved
+	// binaries (fast), and on a cold cache it front-loads the ~450 ms gl4es
+	// compiles behind the loading plaque instead of mid-play hitches.
 	if( bSessionDone || bPrecompiled )
 		return;
 
-	if( !GL_Support( R_SHADER_GLSL100_EXT ) || GL_Support( R_BINARY_SHADER_EXT ))
+	if( !GL_Support( R_SHADER_GLSL100_EXT ))
 	{
 		bSessionDone = true;
 		return;
@@ -3656,7 +3803,7 @@ void R_ShaderLoadPhaseStep( float frameBudgetSeconds )
 	CVAR_SET_FLOAT( "ui_shadersdone", 1 );
 	gHUD.bShadersCompiled = true;
 
-	Msg( "^2half-D v0.8.8: precompiled %d shaders in the per-frame load phase^7 (%d already cached, %d skipped as unusable on this driver, %d failed)\n",
+	Msg( "^2half-D v0.8.9: precompiled %d shaders in the per-frame load phase^7 (%d already cached, %d skipped as unusable on this driver, %d failed)\n",
 		g_iSyncCompiled + g_iSyncHashed, g_iSyncHashed, g_iSyncSkipped, g_iSyncFailed );
 }
 

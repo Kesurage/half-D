@@ -691,6 +691,34 @@ bool CStudioModelRenderer::CheckBoneCache( float f )
 		// search for center of bbox
 		Vector pos = (m_pModelInstance->absmin + m_pModelInstance->absmax) * 0.5f;
 		CL_FindNearestCubeMapBox( pos, &m_pModelInstance->cubemap );
+
+		// half-D v0.8.9: self-reflection guard. Static props are baked into
+		// the cubemap shots, so a probe box overlapping this model contains
+		// the model's own body - its glass then mirrors the vehicle itself
+		// (v0.8.7 field report: windows showing an enlarged own body/wheel).
+		// Reject the probe in that case: the draw path binds the black cube
+		// and the glass keeps its base texture instead of a self-mirror.
+		if( m_pModelInstance->cubemap )
+		{
+			mcubemap_t *cm = m_pModelInstance->cubemap;
+			const float flRadius = ( m_pModelInstance->absmax - m_pModelInstance->absmin ).Length() * 0.5f;
+
+			if( pos.x > cm->mins.x - flRadius && pos.x < cm->maxs.x + flRadius &&
+				pos.y > cm->mins.y - flRadius && pos.y < cm->maxs.y + flRadius &&
+				pos.z > cm->mins.z - flRadius && pos.z < cm->maxs.z + flRadius )
+			{
+				static int cSelfRefLogged = 0;
+
+				if( cSelfRefLogged < 16 )
+				{
+					cSelfRefLogged++;
+					ConPrintf( "^2half-D v0.8.9:^7 self-reflection guard: model at (%.0f %.0f %.0f) overlaps its cubemap box - studio reflection disabled\n",
+						pos.x, pos.y, pos.z );
+				}
+
+				m_pModelInstance->cubemap = NULL;
+			}
+		}
 	}
 
 	// save rotationmatrix to GL-style array
@@ -6741,7 +6769,7 @@ void CStudioModelRenderer::DrawStudioMeshes( void )
 			}
 		}
 
-		// half-D v0.8.8: name the shader path behind reflective-looking studio
+		// half-D v0.8.9: name the shader path behind reflective-looking studio
 		// meshes (chrome UVs vs cubemap reflection), once per texture, so the
 		// device log says which one draws e.g. the menu car's windows.
 		if( tr.realframecount < 900 && ( FBitSet( mat->flags, STUDIO_NF_CHROME ) || FBitSet( RI->currentshader->status, SHADER_USE_CUBEMAPS )))
@@ -6762,7 +6790,7 @@ void CStudioModelRenderer::DrawStudioMeshes( void )
 			if( !already_logged && logged_reflect_count < 32 )
 			{
 				logged_reflect_tex[logged_reflect_count++] = iTexnum;
-				ConPrintf( "^2half-D v0.8.8:^7 studio reflective mesh: material=%s chrome=%s cubemap=%s reflect=%.2f/%.2f\n",
+				ConPrintf( "^2half-D v0.8.9:^7 studio reflective mesh: material=%s chrome=%s cubemap=%s reflect=%.2f/%.2f\n",
 					tr.materials[iTexnum].name,
 					FBitSet( mat->flags, STUDIO_NF_CHROME ) ? "yes" : "no",
 					( m_pModelInstance->cubemap != NULL ) ? "yes" : "no",

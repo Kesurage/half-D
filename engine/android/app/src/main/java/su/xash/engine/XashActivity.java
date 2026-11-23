@@ -287,6 +287,14 @@ public class XashActivity extends SDLActivity {
 		// engine.log when the game folder cannot be written (sys_con.c).
 		nativeSetenv("HALFD_LOGDIR", getFilesDir().getAbsolutePath());
 
+		// half-D v0.8.9: persistent shader-binary cache in the app-private
+		// dir (the game folder is not writable on the field device - see the
+		// v0.8.8 engine.log fallback). Version-scoped so an app update never
+		// reuses stale binaries from a previous glsl set.
+		File halfdShaderCache = new File(getFilesDir(), "shadercache/v" + BuildConfig.VERSION_NAME);
+		if (!halfdShaderCache.exists()) halfdShaderCache.mkdirs();
+		nativeSetenv("HALFD_SHADERCACHE", halfdShaderCache.getAbsolutePath());
+
 		mUseVolumeKeys = getIntent().getBooleanExtra("usevolume", false);
 		mPackageName = getIntent().getStringExtra("package");
 
