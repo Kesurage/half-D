@@ -2388,10 +2388,24 @@ int HUD_RenderFrame( const ref_viewpass_t *rvp )
 	// progress. After the phase the rate limiter only paces rare
 	// stragglers (r_shader_lazy_hz; default 0 = reference first-use
 	// compile: always correct, one ~460 ms hitch each).
+	// half-D v0.8.5: the budget is now adaptive. The flat 1.2 s/frame kept
+	// burning AFTER a fast menu-map load finished (the menu map activates
+	// in ~7 s, the phase needs ~45 s through gl4es) — the v0.8.4 field
+	// report's "turning it back on means 1fps again" was ~38 s of ~1 fps
+	// menu. Spend the big budget only behind the loading plaque
+	// (scr_loading > 0); once the game is visible trickle at 0.1 s/frame
+	// (~10 fps floor) so the phase finishes in the background without
+	// freezing anything. On the native ES3 ref the whole phase is ~1-2 s
+	// and the budget barely matters; this protects the gl4es fallback.
 	if( R_ShaderLoadPhaseActive() )
 	{
-		R_ShadersFrameStart( true, 0.8f );  // drain the deferred queue too
-		R_ShaderLoadPhaseStep( 1.2f );
+		static cvar_t *scr_loading = NULL;
+		if( !scr_loading )
+			scr_loading = CVAR_GET_POINTER( "scr_loading" );
+
+		const float flPhaseBudget = ( scr_loading && scr_loading->value > 0.0f ) ? 1.2f : 0.1f;
+		R_ShadersFrameStart( true, flPhaseBudget * 0.5f );  // drain the deferred queue too
+		R_ShaderLoadPhaseStep( flPhaseBudget );
 	}
 	else
 		R_ShadersFrameStart( false );

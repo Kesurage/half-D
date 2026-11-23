@@ -1356,8 +1356,8 @@ bool R_Init( void )
 		g_fRenderInitialized = false;
 		CVAR_SET_FLOAT( "gl_renderer", 0 );
 		CVAR_SET_FLOAT( "ui_shadersdone", 1 ); // mainui hides every menu until this is 1
-		ConPrintf( "^3half-D v0.8.4 performance mode:^7 the game's custom shader renderer is disabled; the engine renderer draws the game.\n" );
-		ConPrintf( "^3half-D:^7 full shader look: set gl_diffusion_renderer 1 (on Mali-G57/gl4es expect the purple/low-fps state — see v0.8.4 notes).\n" );
+		ConPrintf( "^3half-D v0.8.5 performance mode:^7 the game's custom shader renderer is disabled; the engine renderer draws the game (this game needs the custom renderer — expect missing materials/lights).\n" );
+		ConPrintf( "^3half-D:^7 full shader look: set gl_diffusion_renderer 1.\n" );
 		return false;
 	}
 
@@ -1396,11 +1396,14 @@ bool R_Init( void )
 		// because ref, renderer mode and compile mode were never stated
 		// together. This line settles all three for every future log.
 		// half-D v0.8.1: compile mode states the rate limiter too.
-		ConPrintf( "^2half-D v0.8.4:^7 ref=%s renderer=custom(gl4es) es_context=%s binary_shader_cache=%s compile=%s\n",
+		// half-D v0.8.5: renderer label no longer hardcodes "(gl4es)" —
+		// the ref is already printed first (v0.8.5 defaults to gles3compat,
+		// the native ES3 path); es_context=yes on it is EXPECTED, not a bug.
+		ConPrintf( "^2half-D v0.8.5:^7 ref=%s renderer=custom es_context=%s binary_shader_cache=%s compile=%s\n",
 		CVAR_GET_STRING( "r_refdll_loaded" ),
 		glConfig.es_context ? "yes" : "no",
 		GL_Support( R_BINARY_SHADER_EXT ) ? "yes" : "no",
-		GL_Support( R_BINARY_SHADER_EXT ) ? "precompile-pass" : "rate-limited-lazy(r_shader_lazy_hz)+sync-at-mapload" );
+		GL_Support( R_BINARY_SHADER_EXT ) ? "precompile-pass" : "post-load-phase+first-use-inline(r_shader_lazy_hz 0)" );
 
 	return true;
 }

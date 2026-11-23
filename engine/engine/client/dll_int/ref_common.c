@@ -813,11 +813,28 @@ qboolean R_Init( void )
 	// (gl_custom_renderer 0) — that was the measured cost driver, not the
 	// ref. So: engine renderer + gl4es = the proven texture path minus the
 	// client renderer's compile storms and draw-call churn.
+	//
+	// half-D v0.8.5: order flipped — gles3compat first, gl4es fallback.
+	// Both v0.7.1 reasons are gone:
+	//   * the DDS failure is fixed at the source: engine imagelib now CPU-
+	//     decodes DXT1/3/5 when the ref has no hardware S3TC (v0.8.1,
+	//     verified against hand-computed reference blocks), so the native
+	//     ref loads the game's textures.
+	//   * the custom renderer is the default again (gl_diffusion_renderer 1
+	//     since v0.7.3; v0.8.4's engine-renderer default broke the game's
+	//     materials/lights/props) — and under gl4es it was gl4es's own
+	//     GLSL->GLES translation that produced the purple lighting and
+	//     glitched models (v0.8.1-0.8.4 field reports), plus ~460 ms per
+	//     translated compile with no binary cache (the 45 s load phase
+	//     and the 1 fps states). The native ES3 ref compiles the ES300-
+	//     transformed shaders directly on Mali and exposes program
+	//     binaries for caching.
+	// A user-supplied `-ref` (priority 1 above) still wins over this.
 	if( !success )
 	{
-		success = R_LoadRenderer( "gl4es", false );
+		success = R_LoadRenderer( "gles3compat", false );
 		if( !success )
-			success = R_LoadRenderer( "gles3compat", false );
+			success = R_LoadRenderer( "gl4es", false );
 	}
 #endif
 

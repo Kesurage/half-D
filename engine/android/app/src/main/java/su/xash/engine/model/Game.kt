@@ -101,9 +101,10 @@ class Game(val ctx: Context, val basedir: File, val gameInfoFile: File, previous
 		}
 
 		// half-D v0.7.0: no renderer pin in the default arguments — the
-		// engine's ref_common.c prefers gles3compat (performance mode, the
-		// client's custom shader renderer is off by default) with gl4es as
-		// fallback. Users can still force one via -ref in saved arguments.
+		// engine's ref_common.c picks the ref. half-D v0.8.5: that order
+		// prefers gles3compat (the native ES3 path the launcher now pins
+		// too — gl4es's GLSL translation caused the purple/1 fps states);
+		// gl4es stays forceable via -ref in saved arguments.
 		commandLineArgs += pref.getString("arguments", "-console -log -dev 2") ?: ""
 
 		if (externalGame && packageNames != null) {
