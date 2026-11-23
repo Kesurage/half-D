@@ -712,7 +712,7 @@ bool CStudioModelRenderer::CheckBoneCache( float f )
 				if( cSelfRefLogged < 16 )
 				{
 					cSelfRefLogged++;
-					ConPrintf( "^2half-D v0.8.10:^7 self-reflection guard: model at (%.0f %.0f %.0f) overlaps its cubemap box - studio reflection disabled\n",
+					ConPrintf( "^2half-D v0.8.11:^7 self-reflection guard: model at (%.0f %.0f %.0f) overlaps its cubemap box - studio reflection disabled\n",
 						pos.x, pos.y, pos.z );
 				}
 
@@ -6291,7 +6291,10 @@ void CStudioModelRenderer::DrawLightForMeshList( plight_t *pl )
 				GL_Bind( GL_TEXTURE0, tr.whiteTexture );
 			else if( FBitSet( mat->flags, STUDIO_NF_COLORMAP ) )
 				IEngineStudio.StudioSetupSkin( m_pStudioHeader, pskinref[pMesh->skinref] );
-			else if( tr.materials[iTexnum].gl_fallbacktex_id > 0 )
+			// half-D v0.8.11: same fake-reflection suppression as the main
+			// chain above (see the comment there)
+			else if( tr.materials[iTexnum].gl_fallbacktex_id > 0
+				&& !( tr.materials[iTexnum].ReflectScale[0] > 0.01f && m_pModelInstance->cubemap == NULL ))
 				GL_Bind( GL_TEXTURE0, tr.materials[iTexnum].gl_fallbacktex_id );
 			else if( iTexnum != tr.defaultTexture && tr.materials[iTexnum].animation_id >= 0 )
 			{
@@ -6643,7 +6646,13 @@ void CStudioModelRenderer::DrawStudioMeshes( void )
 				IEngineStudio.StudioSetupSkin( m_pStudioHeader, pskinref[pMesh->skinref] );
 			else if( (m_pCurrentEntity->curstate.iuser3 == -670) && tr.materials[iTexnum].monitor && tr.studio_screen_tex[m_pCurrentEntity->index] )
 				GL_Bind( GL_TEXTURE0, tr.studio_screen_tex[m_pCurrentEntity->index] );
-			else if( tr.materials[iTexnum].gl_fallbacktex_id > 0 )
+			// half-D v0.8.11: the fallback texture doubles as a fake
+			// reflection for reflective materials - with no cubemap
+			// assigned it painted the car photo across the windshield
+			// (bind=fallback in the v0.8.10 field log). Reflective +
+			// cubemap-less: draw the diffuse texture instead.
+			else if( tr.materials[iTexnum].gl_fallbacktex_id > 0
+				&& !( tr.materials[iTexnum].ReflectScale[0] > 0.01f && m_pModelInstance->cubemap == NULL ))
 				GL_Bind( GL_TEXTURE0, tr.materials[iTexnum].gl_fallbacktex_id );
 			else if( iTexnum != tr.defaultTexture && tr.materials[iTexnum].animation_id >= 0 )
 			{
@@ -6803,14 +6812,17 @@ void CStudioModelRenderer::DrawStudioMeshes( void )
 					bindpath = "colormap";
 				else if(( m_pCurrentEntity->curstate.iuser3 == -670 ) && tr.materials[iTexnum].monitor && tr.studio_screen_tex[m_pCurrentEntity->index] )
 					bindpath = "monitor";
-				else if( tr.materials[iTexnum].gl_fallbacktex_id > 0 )
+				else if( tr.materials[iTexnum].gl_fallbacktex_id > 0
+					&& !( tr.materials[iTexnum].ReflectScale[0] > 0.01f && m_pModelInstance->cubemap == NULL ))
 					bindpath = "fallback";
 				else if( iTexnum != tr.defaultTexture && tr.materials[iTexnum].animation_id >= 0 )
 					bindpath = "animation";
 				else if( tr.materials[iTexnum].drone_view )
 					bindpath = "drone";
+				else if( tr.materials[iTexnum].gl_fallbacktex_id > 0 )
+					bindpath = "diffuse(fb off)";
 
-				ConPrintf( "^2half-D v0.8.10:^7 studio reflective mesh: material=%s chrome=%s cubemap=%s reflect=%.2f/%.2f bind=%s\n",
+				ConPrintf( "^2half-D v0.8.11:^7 studio reflective mesh: material=%s chrome=%s cubemap=%s reflect=%.2f/%.2f bind=%s\n",
 					tr.materials[iTexnum].name,
 					FBitSet( mat->flags, STUDIO_NF_CHROME ) ? "yes" : "no",
 					( m_pModelInstance->cubemap != NULL ) ? "yes" : "no",

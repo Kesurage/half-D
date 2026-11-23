@@ -140,14 +140,43 @@ static void GL_ShaderCacheFree( byte *data )
 		gEngfuncs.COM_FreeFile( data );
 }
 
+// half-D v0.8.11: save-side instrumentation + the .tried marker that stops
+// the phase from ever paying for the same permutation twice (the v0.8.10
+// field session compiled the same 313 entries again, ~0.5 s each, because
+// their binaries never appeared on disk and nothing said why).
+int g_iHalfDBinSaved = 0;
+int g_iHalfDBinWriteFail = 0;
+int g_iHalfDBinNoBinary = 0;
+int g_iHalfDSyncTried = 0;
+
+static void GL_WriteShaderTriedMarker( const char *cachename )
+{
+	char marker[280];
+	Q_snprintf( marker, sizeof( marker ), "%s.tried", cachename );
+	FILE *f = fopen( marker, "wb" );
+	if( !f ) return;
+	fwrite( "1", 1, 1, f );
+	fclose( f );
+}
+
 static void GL_ShaderCacheWrite( const char *filename, const byte *data, int size )
 {
 	if( GL_ShaderCacheIsPrivate())
 	{
 		FILE *f = fopen( filename, "wb" );
-		if( !f ) return;
+
+		// half-D v0.8.11: silent write failures made the phase recompile
+		// 313 permutations every session with nothing in the log
+		if( !f )
+		{
+			g_iHalfDBinWriteFail++;
+			ALERT( at_warning, "half-D: shader cache write FAILED (fopen) for %s\n", filename );
+			return;
+		}
+
 		fwrite( data, 1, size, f );
 		fclose( f );
+		g_iHalfDBinSaved++;
 		return;
 	}
 
@@ -254,7 +283,7 @@ void GL_EncodeNormal( char *options, int texturenum )
 		if( !bAlreadyLogged )
 		{
 			s_iNormLoggedTex[s_iNormLoggedCount++] = texturenum;
-			Msg( "^2half-D v0.8.10:^7 normal decode: texnum=%d glformat=0x%x\n",
+			Msg( "^2half-D v0.8.11:^7 normal decode: texnum=%d glformat=0x%x\n",
 				texturenum, (unsigned int)RENDER_GET_PARM( PARM_TEX_GLFORMAT, texturenum ));
 		}
 	}
@@ -1143,6 +1172,10 @@ static glsl_program_t *GL_InitGPUShader( const char *glname, const char *vpname,
 
 			Mem_Free( buffer );
 		}
+		else
+		{
+			g_iHalfDBinNoBinary++;
+		}
 	}
 
 	// add to hash table
@@ -1359,6 +1392,10 @@ static glsl_program_t *GL_CreateUberShader( GLuint slot, const char *glname, con
 			}
 
 			Mem_Free( buffer );
+		}
+		else
+		{
+			g_iHalfDBinNoBinary++;
 		}
 	}
 
@@ -3795,9 +3832,31 @@ void R_ShaderLoadPhaseStep( float frameBudgetSeconds )
 				g_iHalfDSyncOnDisk++;
 				continue;
 			}
+
+			// half-D v0.8.11: entries the phase already processed once carry
+			// a .tried marker even when the binary never persisted (the
+			// v0.8.10 field session compiled the same 313 permutations again
+			// and again, ~0.5 s each). Never pay for an entry twice; first
+			// use still compiles or loads on demand.
+			char halfDTriedName[280];
+			Q_snprintf( halfDTriedName, sizeof( halfDTriedName ), "%s.tried", halfDCacheName );
+
+			if( GL_ReadRawFileExists( halfDTriedName ))
+			{
+				g_iHalfDSyncTried++;
+				continue;
+			}
 		}
 
 		glsl_program_t *shader = GL_InitGPUShader( curshader.glname, curshader.glname, curshader.glname, curshader.defines );
+
+		// mark this entry as processed no matter how it ended (see above)
+		if( GL_ShaderCacheIsPrivate() )
+		{
+			char halfDCacheName[256];
+			GL_GetShaderCacheFilename( curshader.glname, curshader.defines ? curshader.defines : "", halfDCacheName, sizeof( halfDCacheName ));
+			GL_WriteShaderTriedMarker( halfDCacheName );
+		}
 
 		if( !shader )
 		{
@@ -3841,12 +3900,12 @@ void R_ShaderLoadPhaseStep( float frameBudgetSeconds )
 	CVAR_SET_FLOAT( "ui_shadersdone", 1 );
 	gHUD.bShadersCompiled = true;
 
-	Msg( "^2half-D v0.8.10:^7 load phase: %d on-disk skipped, %d compiled, %d in-session | binary cache this session: %d loads in %.1f s (avg %.0f ms)\n",
-		g_iHalfDSyncOnDisk, g_iSyncCompiled, g_iSyncHashed,
+	Msg( "^2half-D v0.8.11:^7 load phase: %d on-disk skipped, %d marked skipped, %d compiled, %d in-session, %d failed | binary cache session: %d loads in %.1f s, %d saved, %d no-binary, %d write-fail\n",
+		g_iHalfDSyncOnDisk, g_iHalfDSyncTried, g_iSyncCompiled, g_iSyncHashed, g_iSyncFailed,
 		g_iHalfDBinLoaded, g_flHalfDBinLoadMs / 1000.0f,
-		g_iHalfDBinLoaded ? g_flHalfDBinLoadMs / g_iHalfDBinLoaded : 0.0f );
+		g_iHalfDBinSaved, g_iHalfDBinNoBinary, g_iHalfDBinWriteFail );
 
-	Msg( "^2half-D v0.8.10: precompiled %d shaders in the per-frame load phase^7 (%d already cached, %d skipped as unusable on this driver, %d failed)\n",
+	Msg( "^2half-D v0.8.11: precompiled %d shaders in the per-frame load phase^7 (%d already cached, %d skipped as unusable on this driver, %d failed)\n",
 		g_iSyncCompiled + g_iSyncHashed, g_iSyncHashed, g_iSyncSkipped, g_iSyncFailed );
 }
 
