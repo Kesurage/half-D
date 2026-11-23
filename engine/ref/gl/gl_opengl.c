@@ -1586,6 +1586,19 @@ void GL_SetupAttributes( int safegl )
 		}
 	}
 
+#if XASH_ANDROID
+	// half-D v0.8.6: MSAA is force-OFF on Android. The ref default is
+	// gl_msaa 1 and the device archive (opengl.cfg) carried
+	// gl_msaa_samples 8 through the whole v0.5-0.8.4 gl4es era, where the
+	// wrapper silently ignored it. The native ES3 ref (v0.8.5 default)
+	// honors it for real: an 8x multisampled config at 1549x680 on the
+	// 2-core Mali-G57 measured 3 fps with resolve artifacts and a hard
+	// crash (2026-11-23 v0.8.5 field report). A phone panel at this
+	// density does not need MSAA. The Cvar_Set also repairs the archive,
+	// so the setting cannot come back on its own.
+	gEngfuncs.Cvar_Set( "gl_msaa", "0" );
+	gEngfuncs.Cvar_Set( "gl_msaa_samples", "0" );
+#endif
 	if( safegl < SAFE_NOMSAA )
 	{
 		switch( (int)gEngfuncs.pfnGetCvarFloat( "gl_msaa_samples" ))
