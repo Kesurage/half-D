@@ -2416,8 +2416,8 @@ int HUD_RenderFrame( const ref_viewpass_t *rvp )
 
 	GL_LoadAndRebuildCubemaps( RI->params );  // diffusioncubemaps
 
-	auto diagT2 = std::chrono::steady_clock::now();
-	r_diag_ms_cubemaps += std::chrono::duration<float>( diagT2 - diagT1 ).count() * 1000.0f;
+	auto diagT1c = std::chrono::steady_clock::now();
+	r_diag_ms_cubemaps += std::chrono::duration<float>( diagT1c - diagT1 ).count() * 1000.0f;
 
 	tr.fCustomRendering = true;
 	tr.realframecount++;
@@ -2425,7 +2425,7 @@ int HUD_RenderFrame( const ref_viewpass_t *rvp )
 	R_Animatex();
 
 	auto diagT2 = std::chrono::steady_clock::now();
-	r_diag_ms_animatex += std::chrono::duration<float>( diagT2 - diagT1 ).count() * 1000.0f;
+	r_diag_ms_animatex += std::chrono::duration<float>( diagT2 - diagT1c ).count() * 1000.0f;
 
 	// draw main view
 	R_RenderScene();
