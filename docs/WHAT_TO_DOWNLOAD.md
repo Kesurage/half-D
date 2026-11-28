@@ -1,6 +1,6 @@
 # What to download
 
-## You (the player/device)
+## Player / device prerequisites
 
 1. **Diffusion v1.21 — itch.io (canonical, latest)** — https://aynekko.itch.io/diffusion
    - ~2.8 GB zip. This contains the `diffusion/` game folder (maps, models,

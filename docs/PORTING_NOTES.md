@@ -344,7 +344,7 @@ v0.1.8:
 
 ## 15. v0.1.8 device post-mortem: it loads, it runs, at 0-1 fps
 
-First fully playable load: the user got in-game (sounds, NPCs, achievements
+First fully playable load: in-game with sounds, NPCs, achievements
 all live). Three new findings:
 
 1. **Mixed-case shader names missed the APK override.** AAssetManager_open
@@ -587,7 +587,7 @@ work lived on GitHub.
 The v0.2.7 device report (lighting broken, character models missing,
 props glitchy, still 4-8 fps with postfx at 0-1 ms and scene at 99% of
 the frame) pointed away from our patches and at the renderer base
-itself. Research round, per the user's direction:
+itself. Research round:
 
 1. NO AYNEKKO ENGINE FORK EXISTS. Diffusion (github.com/Aynekko/Diffusion)
    runs on stock FWGS xash3d-fwgs — Aynekko's CI repackages the FWGS
@@ -623,7 +623,7 @@ gles3compat` runs the native GLES 3.0 + GL2 shim path his fork tunes.
 
 Missing-content note (not port bugs): truck.mdl, sedan passat, HL1 pain
 sounds, glass_gib/raindrop particle textures and the skybox
-(alpha_sky/solid_sky) are absent from the user's game data — they fail
+(alpha_sky/solid_sky) are absent from the game data itself — they fail
 by name in the log now.
 
 ## 25. v0.8.3: the shader-starvation regression, closed properly

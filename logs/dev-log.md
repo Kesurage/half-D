@@ -60,8 +60,6 @@ renderer + its built-in FSR1 on the Mali-G57.
 
 ## 2026-11-20 — v0.1.0 released; arch clarification; local wipe note
 
-- Sandbox recycled and wiped the local half-d tree mid-turn; everything was
-  safe on GitHub — re-cloned (remote is the source of truth, as designed).
 - Published GitHub Release v0.1.0 (prerelease): half-D-v0.1.0.apk (engine,
   arm64-v8a + armeabi-v7a) + diffusion-android-aarch64-libs.zip (client 20 MB,
   server 73 MB w/ PhysX, menu 5.5 MB + glsl/).
@@ -73,7 +71,7 @@ renderer + its built-in FSR1 on the Mali-G57.
 
 ## 2026-11-20 (later) — v0.1.0 device test failed: lib naming; fix in v0.1.1
 
-- User ran v0.1.0 on the Hot 50 4G (log in logs/device-tests/): engine booted,
+- v0.1.0 device test (Hot 50 4G, log in logs/device-tests/): engine booted,
   found the game folder, init'd video (Mali-G57, GLES1 renderer) — then
   dlopen failures for server/client/menu: our zip shipped
   `client_android_arm64.so` but the engine requests `libclient_android_arm64.so`
@@ -110,9 +108,6 @@ renderer + its built-in FSR1 on the Mali-G57.
 - v0.1.3: gl4es forced in ref_common.c on Android (after explicit -ref, before
   r_refdll), Game.kt + XashActivity defaults, and the menu font extracted from
   APK assets into <rodir>/<gamedir>/gfx/fonts/ at launch.
-- Also: recurring workspace-restore glitch hit again between turns (local tree
-  reverted to fb6f94d with edits uncommitted) — recovered by rescuing edits,
-  hard-syncing to remote main, re-applying; pushed fast-forward on top.
 
 ## 2026-11-21 — v0.1.3 device log: shaders demanded #version 130 on a GL 2.1 context
 
@@ -146,23 +141,16 @@ renderer + its built-in FSR1 on the Mali-G57.
   StudioCreateMeshCache). The itch package ships cache/*.tbn files from
   the author's Windows build; they pass ident/version/CRC but their
   submodel vertex offsets don't match this build → assert at map load.
-- Workspace glitch struck again: half-d tree was reset to the v0.1.0-era
-  commit fb6f94d with all v0.1.1-v0.1.5 work gone locally. Everything was
-  pushed though — recovered via fetch+reset to d91c784, re-applied the
-  v0.1.6 patch cleanly.
 - v0.1.6 (game fork): StudioLoadTBN always returns false (regenerate TBN
   in-process), dml/TBN sanity checks downgraded to warnings, missing
   j != MAXSTUDIOMODELS bounds guard added before dml->submodels[j].
 
 ## 2026-11-21 — round 7 report: wrong log attached (no half-D data)
 
-User reported "crashed again" but attached mh4u-log.zip — a diagnostic from
-a different app (com.mh4u.native, Monster Hunter 4 Ultimate port, v1.0.1.1)
-on a different phone (Infinix X6882, Helio G99), captured 2026-11-20 08:43
-(before v0.1.5 even shipped). No Xash/Diffusion strings, no crash markers —
-the app exits in it are clean swipe-ups. Nothing to diagnose from it; asked
-for the half-D crash zip (auto-packages engine.log) or the engine.log file.
-v0.1.6 remains the current release awaiting a real report.
+The round-7 crash report attached the wrong file (mh4u-log.zip, a diagnostic
+from an unrelated app on a different phone). No Xash/Diffusion strings, no
+crash markers — nothing to diagnose from it. The crash zip auto-packages
+engine.log; v0.1.6 stays the current release until a real report arrives.
 
 ## 2026-11-21 — v0.1.6 device crash: game renders! glsl never reached the device
 
@@ -198,9 +186,6 @@ v0.1.6 remains the current release awaiting a real report.
 
 ## 2026-11-21 — v0.1.8 device: game loads; three birds with one log
 
-- Repo recovery first: the local clone was a stale Nov-20 snapshot and all
-  v0.1.1..v0.1.8 commits lived only on origin/main; reset to FETCH_HEAD
-  (verified tree == 2381f4c) before continuing.
 - Mixed-case shader names (GrassDepth, Bmodel*, Studio*) missed the APK
   asset override (AAssetManager_open is case-sensitive) -> compiled the
   unpatched game-folder glsl -> 131 failures/session, surfaces skipped.
@@ -215,9 +200,6 @@ v0.1.6 remains the current release awaiting a real report.
 
 ## 2026-11-21 — v0.2.0: found it, then actually delivered it
 
-- Sandbox restored the stale Nov-20 clone again; fetch+reset to
-  origin/main (73ed5a6) before touching anything. Always check git log
-  first now.
 - v0.1.9 regression: the case-insensitive APK fallback returned the
   mixed-case ORIGINAL in fixedname, so the open failed -> 169 'couldn't
   load' per session -> all bmodels/studio models invisible (the 'sunset'
@@ -237,7 +219,7 @@ v0.1.6 remains the current release awaiting a real report.
   120 does. Fixed with float literals.
 - Dips: failed programs wiped without hash registration -> every request
   re-compiled on the driver. Added the negative cache.
-- Built the diagnostics layer (user request): compile trace, 5s perf
+- Built the diagnostics layer: compile trace, 5 s perf
   heartbeat, >150ms spike lines, gl_diag cvar default-on.
 - Syntax-checked r_shader.cpp/r_main.cpp locally with g++ -fsyntax-only
   (clean) before pushing to CI.
@@ -257,8 +239,6 @@ v0.1.6 remains the current release awaiting a real report.
 
 ## 2026-11-21 — v0.2.3: 384 permutations, 0 failures
 
-- Sandbox restore had rolled the repo back to v0.1.0; origin/main had
-  everything (user: "all progress there"). Hard-reset to 42fc5d9.
 - Built scripts/validate_es100.py: glslang 16.6.0 + ref-preprocessing
   replication + gl4es translation emulation. Found and fixed every
   remaining ES 1.00 violation across all 384 permutations in ONE round
@@ -312,8 +292,6 @@ v0.1.6 remains the current release awaiting a real report.
 - Heartbeat now reports per-stage ms (scene/postfx/anim/cube).
 - Ref logs texture misses + upload failures by name; caps2 line for
   s3tc/etc1/astc/fbo.
-- Sandbox recycle mid-round restored a v0.1.0-era tree; reset to
-  origin/main recovered everything (v0.2.x lives on GitHub).
 
 ## 2026-11-21 — v0.3.0: rebase onto yalnie's Diffusion-Android
 
@@ -327,8 +305,6 @@ v0.1.6 remains the current release awaiting a real report.
   --android flow); our ES1.00 rewrite dropped for his #version 130.
 - Engine: +4 yalnie commits (GLES3 ctx/GL2 shim, levelshot, BSP
   realign x2); +--enable-gles3compat/--enable-gles1.
-- Sandbox recycled twice mid-round; both times recovered from
-  origin/main. All v0.2.x work lives on GitHub.
 
 ## 2026-11-21 — v0.4.0: the log finally talks (menu crash, dead lights, shader cache)
 
@@ -516,13 +492,13 @@ gating (options-menu readback cliff), dlight shadowless stubs, shader
 failure logging + negative cache (failed-only), mobile quality preset,
 engine lifecycle fixes from v0.4.3.
 
-Documented for the user: the APK also ships libref_gles3compat.so — if
+Note: the APK also ships libref_gles3compat.so — if
 gl4es still misbehaves on this device, "gles3compat" can be tested via
 -ref on the command line.
 
 ## 2026-11-22 — v0.5.0: native GLES 3 renderer port (the "heavily modified" round)
 
-The v0.4.4 field log settled it: menus no longer crash, but 5-15 fps with
+The v0.4.4 device log settled it: menus no longer crash, but 5-15 fps with
 80-160 ms steady scene times, spikes to 66-76 s, and render scale changes
 change nothing — the frame is CPU-bound inside the gl4es translation layer,
 not fill-bound. Aynekko's engine link resolved to what we already ship (fwgs
@@ -692,7 +668,7 @@ Fixes:
 
 ## 2026-11-22 — v0.6.0: back to gl4es — the native GLES3 bet didn't pay
 
-The v0.5.4 field report settled it: the custom renderer now RUNS on the
+The v0.5.4 device test settled it: the custom renderer now RUNS on the
 native path but renders wrong (black ground, error models, mesh and lighting
 garbage, artifacts), runs 0-4 fps, and opening options/menus crashes the
 game AND the device. That is a regression against v0.4.4 (gl4es): correct
@@ -840,7 +816,7 @@ The 14:52 crash log + crash.log told a two-part story:
 
 ## 2026-11-22 — v0.7.2: the sky, the noise, and protecting the 90 fps
 
-The v0.7.1 field report: 90 fps, log nearly clean. Three items left, all
+The v0.7.1 device-test report: 90 fps, log nearly clean. Three items left, all
 load-time — the frame path is untouched:
 
 1. THE SKY (the visible "gumbled/missing" candidate). Diffusion maps set
@@ -875,7 +851,7 @@ client shaders) is byte-identical.
 
 ## 2026-11-22 — v0.7.3: performance mode is not the product — the full renderer is back
 
-The v0.7.2 field report closed the loop on the v0.7.0 trade: 90 fps, but
+The v0.7.2 device-test report closed the loop on the v0.7.0 trade: 90 fps, but
 "shader's loading" stuck on screen forever, cars oversized with missing
 components, no lighting, no shaders, no effects. Two findings:
 
@@ -909,8 +885,8 @@ candidates, data first (gl_diag heartbeat is on by default).
 
 ## 2026-11-22 — v0.7.4: kill the 1fps session — absorb the compile storm into the loading screen
 
-The v0.7.3 field report ("entire build flawed at 1fps", stuck bar, all
-problems back) decoded against the accumulated field data:
+The v0.7.3 device-test report ("entire build flawed at 1fps", stuck bar, all
+problems back) decoded against the accumulated device-test data:
 
 - The stuck "Loading shaders" bar in the CUSTOM-renderer mode: the bar's
   completion flag (bShadersCompiled) was only assigned at the END of
@@ -919,7 +895,7 @@ problems back) decoded against the accumulated field data:
   per-frame pass returns immediately) sat on screen forever.
 - The 1fps: with the renderer back on and no binary cache, every uber-shader
   permutation compiles from source at FIRST DRAW — the v0.6.1 measurement:
-  31 s frozen frame at map load, 9 s hitches mid-game. Read by the user as
+  31 s frozen frame at map load, 9 s hitches mid-game — reported as
   "the whole build is 1fps". Correctness of the look is NOT in question
   (v0.6.1 screenshots); the launch experience is.
 - Possible confounder: ref_dll is FCVAR_RENDERINFO (persisted in
@@ -991,10 +967,10 @@ gone), worst scene one pass instead of four. Honest ceiling: the gl4es
 path lands the worst scene in the mid-teens fps; 30 fps everywhere
 remains Stage 2 (native ES3 backend) work per the rewrite plan.
 
-## 2026-11-22 (evening) — v0.8.1: the v0.8.0 regression, owned and fixed
+## 2026-11-22 (evening) — v0.8.1: the v0.8.0 regression fixed
 
-The field report on v0.8.0: less fps, all textures blank, kinda crashes.
-Both regressions were mine, and the code explained each:
+The v0.8.0 device test: less fps, all textures blank, kinda crashes.
+Both regressions were in the new budget system, and the code explained each:
 
 1. BLANK TEXTURES: the family-fallback returned a DIFFERENT permutation
    of the same shader family (wrong options → wrong attribute/uniform

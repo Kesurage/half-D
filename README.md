@@ -2,12 +2,13 @@
 
 **Diffusion (by Aynekko) — native Android port. A fork of [Xash3D-FWGS](https://github.com/FWGS/xash3d-fwgs) delivering a standalone, playable APK with a built-in launcher, custom touch controls, FSR1 upscaling and Mali/panvk-friendly graphics settings.**
 
-**v0.8.3 — shader-starvation regression closed:** the systematic precompile now runs as a per-frame load phase (1.2 s/frame, ANR-safe, "Loading shaders" progress bar, once per session) instead of a 45 s frozen frame or a 2/s in-game rate limiter; first-use stragglers compile inline (reference behavior — always correct rendering); preset v8 disables grass on mobile (it was 10x the world poly count). The 0.8.x trade of correctness against freezes is gone. See `docs/PORTING_NOTES.md` §25).
-> the Diffusion Android libraries (client/server/PhysX/MainUI, arm64-v8a) on
-> every push; grab them from [Releases](https://github.com/Kesurage/half-D/releases).
-> Note: the itch.io/ModDB download ships PC binaries only (Windows x86/x64,
-> Linux amd64) — a phone is ARM, so all game code is recompiled from the source
-> vendored here (see `docs/WHAT_TO_DOWNLOAD.md` § "amd64 vs arm64").
+**Current state (v0.8.x):** playable. The full custom renderer runs through gl4es with the mobile preset (grass/mirrors/MSAA off, 60 fps cap), and a persistent shader-binary cache plus `.tried` markers keep launch times down. Known remaining work: scene-bound 13-17 fps in the heaviest areas (see the v0.8.11 release notes), the red/magenta grate lighting bug, and missing content files in some installs. History and diagnosis for every build are in `logs/dev-log.md` and the release notes.
+
+CI builds the Diffusion Android libraries (client/server/PhysX/MainUI, arm64-v8a)
+on every push; grab them from [Releases](https://github.com/Kesurage/half-D/releases).
+Note: the itch.io/ModDB download ships PC binaries only (Windows x86/x64,
+Linux amd64) — a phone is ARM, so all game code is recompiled from the source
+vendored here (see `docs/WHAT_TO_DOWNLOAD.md` § "amd64 vs arm64").
 
 - Target device: **Infinix Hot 50 4G** (MediaTek Helio G100, ARM Mali-G57 MC2, Android 14)
 - Source game: **Diffusion** — a total-conversion Half-Life mod running on Xash3D-FWGS (https://aynekko.itch.io/diffusion, https://www.moddb.com/mods/diffusion)
@@ -20,11 +21,18 @@ Diffusion is a *total conversion*: it pushes Xash3D-FWGS beyond stock GoldSrc li
 ## Repository layout
 
 ```
+engine/        Vendored Xash3D-FWGS fork (the engine + Android launcher project)
+game/          Vendored Diffusion game code (client renderer, server, PhysX)
+mainui/        Vendored MainUI (menu library)
 docs/          Research findings, roadmap, build plan, controls plan, device notes
-tools/         Helper scripts (build env check, adb log capture, touch-layout helper)
+tools/         Build/test helpers (GLSL validators, DXT decoder test, adb capture)
+tools/releases Release scripts, one per shipped version
+scripts/       Repo maintenance and asset generation scripts
 logs/          Development log, research log, device test results
-deliverables/  Generated reports (PDF) and release notes
+deliverables/  Generated reports (PDF)
 ```
+
+Contributions welcome — see `CONTRIBUTING.md` for the build setup and where to start.
 
 ## Roadmap (summary)
 
